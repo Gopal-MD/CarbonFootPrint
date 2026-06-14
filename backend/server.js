@@ -49,8 +49,11 @@ app.use(
         defaultSrc: ["'self'"],
         scriptSrc: [
           "'self'",
+          "'unsafe-inline'", // Required for Vite module scripts & Google Identity
           'https://maps.googleapis.com',
+          'https://maps.gstatic.com',
           'https://apis.google.com',
+          'https://accounts.google.com',
         ],
         styleSrc: [
           "'self'",
@@ -58,15 +61,31 @@ app.use(
           'https://fonts.googleapis.com',
         ],
         fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-        imgSrc: ["'self'", 'data:', 'https://*.googleapis.com', 'https://*.gstatic.com'],
+        imgSrc: [
+          "'self'",
+          'data:',
+          'blob:',
+          'https://*.googleapis.com',
+          'https://*.gstatic.com',
+          'https://*.google.com',
+        ],
         connectSrc: [
           "'self'",
           'https://*.googleapis.com',
           'https://*.google.com',
           'https://firestore.googleapis.com',
+          'https://identitytoolkit.googleapis.com', // Firebase Auth REST API
+          'https://securetoken.googleapis.com',     // Firebase token refresh
+          'https://*.firebaseio.com',
           'wss://*.firebaseio.com',
+          'https://*.cloudfunctions.net',
+          'https://carbonfootprint-984604014815.asia-south1.run.app',
         ],
-        frameSrc: ["'none'"],
+        frameSrc: [
+          'https://accounts.google.com',   // Google Sign-In popup
+          'https://*.firebaseapp.com',     // Firebase Auth popup
+          'https://carbonfootprint-97b87.firebaseapp.com',
+        ],
         objectSrc: ["'none'"],
         upgradeInsecureRequests: isProduction() ? [] : null,
       },
@@ -79,18 +98,26 @@ app.use(
 );
 
 // ── Security: CORS ────────────────────────────────────────────────────────────
-const allowedOrigins = getEnv('CORS_ALLOWED_ORIGINS', 'http://localhost:5173')
-  .split(',')
-  .map((o) => o.trim());
+const allowedOriginsEnv = getEnv('CORS_ALLOWED_ORIGINS', '');
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:8080',
+  'https://carbonfootprint-984604014815.asia-south1.run.app',
+  ...( allowedOriginsEnv ? allowedOriginsEnv.split(',').map((o) => o.trim()).filter(Boolean) : [] ),
+];
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (server-to-server, curl)
+      // Allow requests with no origin (server-to-server, curl, same-origin SPA)
       if (!origin) {
         return callback(null, true);
       }
       if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      // Allow any *.run.app Cloud Run URL automatically
+      if (/^https:\/\/[\w-]+\.run\.app$/.test(origin)) {
         return callback(null, true);
       }
       logger.warn(`[CORS] Rejected request from origin: ${origin}`);
@@ -102,6 +129,7 @@ app.use(
     maxAge: 86400, // Cache preflight for 24h
   })
 );
+
 
 // ── Security: Rate Limiting ────────────────────────────────────────────────────
 /**

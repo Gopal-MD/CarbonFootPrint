@@ -21,8 +21,28 @@ COPY frontend/package.json frontend/package-lock.json* ./
 # Install ALL frontend deps (including devDeps needed for build)
 RUN npm install --ignore-scripts
 
-# Copy source and build
+# Copy source (includes frontend/.env with VITE_ config)
 COPY frontend/ ./
+
+# Accept VITE_ build-time args (can be passed via --build-arg in Cloud Build)
+ARG VITE_FIREBASE_API_KEY
+ARG VITE_FIREBASE_AUTH_DOMAIN
+ARG VITE_FIREBASE_PROJECT_ID
+ARG VITE_FIREBASE_STORAGE_BUCKET
+ARG VITE_FIREBASE_MESSAGING_SENDER_ID
+ARG VITE_FIREBASE_APP_ID
+ARG VITE_GOOGLE_MAPS_API_KEY
+
+# Export ARGs as ENV so Vite (which reads process.env) can access them.
+# If not passed as build-args, Vite will fall back to the .env file copied above.
+ENV VITE_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY
+ENV VITE_FIREBASE_AUTH_DOMAIN=$VITE_FIREBASE_AUTH_DOMAIN
+ENV VITE_FIREBASE_PROJECT_ID=$VITE_FIREBASE_PROJECT_ID
+ENV VITE_FIREBASE_STORAGE_BUCKET=$VITE_FIREBASE_STORAGE_BUCKET
+ENV VITE_FIREBASE_MESSAGING_SENDER_ID=$VITE_FIREBASE_MESSAGING_SENDER_ID
+ENV VITE_FIREBASE_APP_ID=$VITE_FIREBASE_APP_ID
+ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
+
 RUN npm run build
 
 # ─────────────────────────────────────────────────
