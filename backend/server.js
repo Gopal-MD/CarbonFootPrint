@@ -116,8 +116,8 @@ app.use(
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
-      // Allow any *.run.app Cloud Run URL automatically
-      if (/^https:\/\/[\w-]+\.run\.app$/.test(origin)) {
+      // Allow any Cloud Run *.run.app URL (may have multiple subdomain levels)
+      if (/^https:\/\/.+\.run\.app$/.test(origin)) {
         return callback(null, true);
       }
       logger.warn(`[CORS] Rejected request from origin: ${origin}`);
@@ -183,8 +183,6 @@ const aiRateLimit = rateLimit({
   },
 });
 
-app.use(globalRateLimit);
-
 // ── Parsing & Logging ─────────────────────────────────────────────────────────
 app.use(express.json({ limit: '15mb' })); // 15 MB to accommodate base64 images
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
@@ -202,6 +200,16 @@ app.use(
 
 // ── Trust proxy (required for Cloud Run / load balancers) ─────────────────────
 app.set('trust proxy', 1);
+
+// ── Rate Limiting (applied AFTER static files — assets must never be rate-limited) ────
+// NOTE: Registered here so CSS/JS/image asset requests bypass rate limiting entirely.
+app.use((req, res, next) => {
+  // Skip rate limiting for all static asset paths
+  if (req.path.startsWith('/assets/') || req.path === '/favicon.svg' || req.path === '/manifest.json') {
+    return next();
+  }
+  return globalRateLimit(req, res, next);
+});
 
 // ── Apply strict AI rate limit to expensive endpoints ─────────────────────────
 app.use('/api/scan', aiRateLimit);
