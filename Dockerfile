@@ -19,7 +19,7 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 
 # Install ALL frontend deps (including devDeps needed for build)
-RUN npm ci --ignore-scripts
+RUN npm install --ignore-scripts
 
 # Copy source and build
 COPY frontend/ ./
@@ -40,7 +40,7 @@ WORKDIR /app/backend
 COPY backend/package.json backend/package-lock.json* ./
 
 # Install ONLY production dependencies
-RUN npm ci --omit=dev --ignore-scripts
+RUN npm install --omit=dev --ignore-scripts
 
 # Copy backend source
 COPY backend/ ./
