@@ -23,13 +23,18 @@ if (!apiKey) {
 
 
 // ── Firebase Configuration ───────────────────────────────────────────────────
+// NOTE: Firebase CLIENT config is intentionally public — these are browser-safe
+// keys designed to be shipped with frontend code. See:
+// https://firebase.google.com/docs/projects/api-keys
+// Security is enforced by Firebase Security Rules and authorized domains, NOT
+// by keeping these keys secret.
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyB45g7rteYeabGeGGFvkIOg1oralRChaI0',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'carbonfootprint-97b87.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'carbonfootprint-97b87',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'carbonfootprint-97b87.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '492327811360',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:492327811360:web:40d537e2d8abb1db0f3f45',
 };
 
 // ── App Initialization (singleton — safe for HMR) ────────────────────────────
