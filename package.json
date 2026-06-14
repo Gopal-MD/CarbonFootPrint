@@ -1,0 +1,29 @@
+{
+  "name": "carbon-footprint-platform",
+  "version": "0.1.0",
+  "description": "Carbon Footprint Awareness Platform — Google Solution Challenge",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\"",
+    "build": "npm run build --workspace=frontend && npm run build --workspace=backend",
+    "lint": "npm run lint --workspace=frontend && npm run lint --workspace=backend",
+    "lint:fix": "npm run lint:fix --workspace=frontend && npm run lint:fix --workspace=backend",
+    "test": "npm run test --workspace=frontend && npm run test --workspace=backend",
+    "test:e2e": "npm run test:e2e --workspace=frontend",
+    "security:audit": "npm audit --audit-level=moderate --workspaces",
+    "format": "prettier --write \"**/*.{js,jsx,mjs,json,md,css}\" --ignore-path .gitignore",
+    "format:check": "prettier --check \"**/*.{js,jsx,mjs,json,md,css}\" --ignore-path .gitignore"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "prettier": "^3.3.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

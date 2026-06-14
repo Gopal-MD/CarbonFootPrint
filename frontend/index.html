@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- ── SEO & Open Graph ─────────────────────────────────────────── -->
+    <title>EcoTrack — Carbon Footprint Awareness Platform</title>
+    <meta
+      name="description"
+      content="Track, understand, and reduce your personal carbon footprint with AI-powered insights, commute analytics, and utility bill scanning."
+    />
+    <meta name="keywords" content="carbon footprint, sustainability, eco, climate, emissions tracker" />
+    <meta name="author" content="EcoTrack Team" />
+    <meta name="theme-color" content="#0d9488" />
+
+    <meta property="og:title" content="EcoTrack — Carbon Footprint Awareness Platform" />
+    <meta
+      property="og:description"
+      content="AI-powered carbon footprint tracker. Scan bills, measure commutes, get personalized eco-insights."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/og-image.png" />
+
+    <!-- ── Favicon ──────────────────────────────────────────────────── -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- ── Preconnect for performance ──────────────────────────────── -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- ── No-JS Fallback ────────────────────────────────────────────── -->
+    <noscript>
+      <style>
+        #noscript-warning {
+          display: flex !important;
+        }
+      </style>
+    </noscript>
+  </head>
+
+  <body>
+    <!-- No-JS warning (hidden by default) -->
+    <div
+      id="noscript-warning"
+      style="
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: #0f172a;
+        color: #f1f5f9;
+        align-items: center;
+        justify-content: center;
+        font-family: system-ui, sans-serif;
+        text-align: center;
+        padding: 2rem;
+        z-index: 9999;
+      "
+      role="alert"
+    >
+      <div>
+        <h1>JavaScript Required</h1>
+        <p>EcoTrack requires JavaScript to run. Please enable JavaScript in your browser settings.</p>
+      </div>
+    </div>
+
+    <!-- ── App Mount Point ──────────────────────────────────────────── -->
+    <div id="root" role="main" aria-label="EcoTrack Carbon Footprint Platform"></div>
+
+    <!--
+      aria-live region: politely announces dynamic status messages
+      (AI analysis progress, bill scanning, route calculation)
+      to screen readers without interrupting focus.
+    -->
+    <div
+      id="aria-announcer"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      class="sr-only"
+    ></div>
+
+    <!-- ── App Entry ─────────────────────────────────────────────────── -->
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

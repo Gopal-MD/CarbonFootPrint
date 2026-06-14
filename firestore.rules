@@ -1,0 +1,99 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ───────────────────────────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidString(field, maxLen) {
+      return field is string && field.size() <= maxLen;
+    }
+
+    function isValidNumber(field, minVal, maxVal) {
+      return field is number && field >= minVal && field <= maxVal;
+    }
+
+    function hasRequiredFields(data, fields) {
+      return fields.hasAll(data.keys());
+    }
+
+    // ── User profiles ──────────────────────────────────────────────────────
+    // Users can only read/write their own profile document
+    match /users/{userId} {
+      allow read:   if isOwner(userId);
+      allow create: if isOwner(userId)
+                    && isValidString(request.resource.data.displayName, 100)
+                    && isValidString(request.resource.data.email, 254);
+      allow update: if isOwner(userId)
+                    && isValidString(request.resource.data.displayName, 100);
+      allow delete: if false; // Soft-delete only via Cloud Function
+    }
+
+    // ── Emission records ───────────────────────────────────────────────────
+    // Each record belongs to a user and contains carbon data for one month
+    match /emissions/{userId}/records/{recordId} {
+      allow read:   if isOwner(userId);
+      allow create: if isOwner(userId)
+                    && isValidNumber(request.resource.data.kgCO2e, 0, 100000)
+                    && isValidString(request.resource.data.month, 7)     // YYYY-MM
+                    && isValidString(request.resource.data.source, 50);  // commute|utility|food
+      allow update: if isOwner(userId)
+                    && isValidNumber(request.resource.data.kgCO2e, 0, 100000);
+      allow delete: if isOwner(userId);
+    }
+
+    // ── Commute history ────────────────────────────────────────────────────
+    match /commutes/{userId}/trips/{tripId} {
+      allow read:   if isOwner(userId);
+      allow create: if isOwner(userId)
+                    && isValidString(request.resource.data.origin, 500)
+                    && isValidString(request.resource.data.destination, 500)
+                    && isValidNumber(request.resource.data.kgCO2e, 0, 10000)
+                    && isValidNumber(request.resource.data.distanceKm, 0, 50000)
+                    && request.resource.data.mode in ['DRIVING','TRANSIT','BICYCLING','WALKING'];
+      allow update: if false; // Commute records are immutable
+      allow delete: if isOwner(userId);
+    }
+
+    // ── Bill scan results ──────────────────────────────────────────────────
+    match /scans/{userId}/bills/{billId} {
+      allow read:   if isOwner(userId);
+      allow create: if isOwner(userId)
+                    && (
+                      !('kWhExtracted' in request.resource.data)
+                      || isValidNumber(request.resource.data.kWhExtracted, 0, 100000)
+                    )
+                    && (
+                      !('kgCO2e' in request.resource.data)
+                      || isValidNumber(request.resource.data.kgCO2e, 0, 100000)
+                    );
+      allow update: if false; // Scan records are immutable
+      allow delete: if isOwner(userId);
+    }
+
+    // ── AI Insights cache ──────────────────────────────────────────────────
+    // Read-only for users (writes happen via backend only)
+    match /insights/{userId}/cache/{cacheId} {
+      allow read:   if isOwner(userId);
+      allow write:  if false; // Written by Cloud Run service account only
+    }
+
+    // ── Public leaderboard (anonymous aggregate stats only) ────────────────
+    match /leaderboard/{entry} {
+      allow read:   if isAuthenticated();
+      allow write:  if false; // Updated by Cloud Function
+    }
+
+    // ── Deny all other paths ──────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
