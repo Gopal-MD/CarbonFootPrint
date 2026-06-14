@@ -1,0 +1,22 @@
+# Docker build context exclusions — keeps image lean & secrets safe
+node_modules
+*/node_modules
+frontend/dist
+.git
+.gitignore
+*.md
+*.log
+coverage
+.nyc_output
+test-results
+playwright-report
+.env
+.env.*
+!frontend/.env
+*.pem
+serviceAccountKey.json
+firebase-adminsdk*.json
+.DS_Store
+Thumbs.db
+.vscode
+.idea
