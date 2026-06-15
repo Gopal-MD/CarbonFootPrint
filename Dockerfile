@@ -52,7 +52,7 @@ COPY shared/ ./shared/
 COPY backend/ ./backend/
 
 # Compile TypeScript
-RUN npx tsc --project backend/tsconfig.json
+RUN npm run build --workspace=backend
 
 # Prepare production-only dependencies
 WORKDIR /app/backend-prod
@@ -80,9 +80,8 @@ WORKDIR /app
 COPY --from=builder-backend --chown=appuser:appgroup /app/backend-prod/node_modules ./backend/node_modules
 COPY --from=builder-backend --chown=appuser:appgroup /app/backend-prod/package.json ./backend/package.json
 
-# Copy compiled backend and shared files
-COPY --from=builder-backend --chown=appuser:appgroup /app/backend/dist/backend ./backend
-COPY --from=builder-backend --chown=appuser:appgroup /app/backend/dist/shared ./shared
+# Copy compiled backend files (including dist folder)
+COPY --from=builder-backend --chown=appuser:appgroup /app/backend/dist ./backend/dist
 
 # Copy frontend build output; Express will serve static files
 COPY --from=builder-frontend --chown=appuser:appgroup /app/frontend/dist ./frontend/dist
@@ -103,4 +102,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
 
 # Use dumb-init to handle PID 1 signal reaping
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
-CMD ["node", "backend/server.js"]
+CMD ["node", "backend/dist/backend/server.js"]

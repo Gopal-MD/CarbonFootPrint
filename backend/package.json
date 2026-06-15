@@ -7,7 +7,7 @@
   "scripts": {
     "start": "tsx server.ts",
     "dev": "tsx watch server.ts",
-    "build": "tsc --noEmit",
+    "build": "tsc",
     "lint": "eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix",
     "test": "vitest run --coverage",

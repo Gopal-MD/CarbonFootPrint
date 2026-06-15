@@ -225,7 +225,11 @@ app.use('/api/insights', aiRateLimit);
 // ── Static file serving (React frontend in production) ────────────────────────
 if (isProduction()) {
   const __dirname = dirname(fileURLToPath(import.meta.url));
-  const frontendDistPath = join(__dirname, '..', 'frontend', 'dist');
+  let frontendDistPath = join(__dirname, '..', 'frontend', 'dist');
+  if (!existsSync(frontendDistPath)) {
+    // Fallback for nested dist directory structure (e.g., backend/dist/backend/server.js)
+    frontendDistPath = join(__dirname, '..', '..', '..', 'frontend', 'dist');
+  }
 
   if (existsSync(frontendDistPath)) {
     // Serve static assets
