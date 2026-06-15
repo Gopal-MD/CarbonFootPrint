@@ -30,7 +30,7 @@ RUN npm run build
 
 
 # ─────────────────────────────────────────────────
-# Stage 2: Prepare Backend (Node.js + Express)
+# Stage 2: Build & Prepare Backend
 # ─────────────────────────────────────────────────
 FROM node:20-alpine AS builder-backend
 
@@ -38,16 +38,27 @@ LABEL stage="builder-backend"
 
 RUN apk add --no-cache libc6-compat
 
-WORKDIR /app/backend
+WORKDIR /app
 
 # Copy dependency manifests
-COPY backend/package.json backend/package-lock.json* ./
+COPY package.json package-lock.json* ./
+COPY backend/package.json ./backend/
 
-# Install ONLY production dependencies
+# Install backend dependencies (including devDependencies for build)
+RUN npm install --workspace=backend
+
+# Copy source code files
+COPY shared/ ./shared/
+COPY backend/ ./backend/
+
+# Compile TypeScript
+RUN npx tsc --project backend/tsconfig.json
+
+# Prepare production-only dependencies
+WORKDIR /app/backend-prod
+COPY backend/package.json ./
 RUN npm install --omit=dev --ignore-scripts
 
-# Copy backend source
-COPY backend/ ./
 
 # ─────────────────────────────────────────────────
 # Stage 3: Production Runtime (minimal, non-root)
@@ -65,8 +76,13 @@ RUN apk add --no-cache dumb-init \
 
 WORKDIR /app
 
-# Copy backend (with node_modules) from builder-backend
-COPY --from=builder-backend --chown=appuser:appgroup /app/backend ./backend
+# Copy backend dependencies
+COPY --from=builder-backend --chown=appuser:appgroup /app/backend-prod/node_modules ./backend/node_modules
+COPY --from=builder-backend --chown=appuser:appgroup /app/backend-prod/package.json ./backend/package.json
+
+# Copy compiled backend and shared files
+COPY --from=builder-backend --chown=appuser:appgroup /app/backend/dist/backend ./backend
+COPY --from=builder-backend --chown=appuser:appgroup /app/backend/dist/shared ./shared
 
 # Copy frontend build output; Express will serve static files
 COPY --from=builder-frontend --chown=appuser:appgroup /app/frontend/dist ./frontend/dist
