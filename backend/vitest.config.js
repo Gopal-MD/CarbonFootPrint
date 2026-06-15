@@ -27,7 +27,7 @@ export default defineConfig({
         '*.config.*',
       ],
     },
-    include: ['tests/**/*.{test,spec}.js'],
+    include: ['tests/**/*.{test,spec}.{js,ts}'],
     testTimeout: 10000,
   },
 });

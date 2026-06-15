@@ -240,3 +240,17 @@ Internet
 ```
 
 All credentials stored in **Google Cloud Secret Manager** and injected at runtime as environment variables. Never stored in Docker images or source code.
+
+---
+
+## 8. Verified Implementations & Mitigations
+
+### Route Authorization & Data Scoping
+All data-bearing routes (`/api/commute`, `/api/scan`, `/api/insights`, `/api/emissions`) mount the `requireAuth` middleware, which parses and verifies the Firebase ID token in the `Authorization: Bearer <idToken>` header. 
+- **Authenticity validation**: Decryption and cryptographic validation are executed on the Express server.
+- **Enforced Access Control**: Data queries are locked to the user UID (`req.user.uid`) retrieved from the token claims. If a client attempts to pass a custom `userId` in the body or query parameters, the server verifies `req.body.userId === req.user.uid` (or `req.query.userId === req.user.uid`) and blocks any mismatch with a `403 Forbidden` response.
+
+### NAT-Safe Rate Limiting
+To resolve the DoS risk for multiple users behind a corporate VPN or NAT sharing a public IP address:
+- **Middleware ordering**: `optionalAuth` is registered before the `aiRateLimit` middlewares on `/api`.
+- **Key generation**: The rate limiter `keyGenerator` keys off `req.user.uid` for authenticated sessions, falling back to `req.ip` only for anonymous or unauthenticated requests. This separates rate limit pools per authenticated user even when sharing a public IP.

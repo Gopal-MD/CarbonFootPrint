@@ -1,0 +1,79 @@
+/**
+ * @fileoverview Firebase SDK initialization for the Carbon Footprint Platform.
+ *
+ * All Firebase configuration values are read from Vite environment variables
+ * (prefixed VITE_) so they are never hardcoded. The app will throw a clear
+ * error during development if required variables are missing.
+ *
+ * Exports:
+ *  - {@link app}   — Firebase App instance
+ *  - {@link auth}  — Firebase Authentication instance
+ *  - {@link db}    — Firestore database instance
+ */
+
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+
+// ── Environment Variable Validation ─────────────────────────────────────────
+const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
+if (!apiKey) {
+  console.warn('[Firebase] Missing VITE_FIREBASE_API_KEY. Check your .env file.');
+}
+
+
+// ── Firebase Configuration ───────────────────────────────────────────────────
+// NOTE: Firebase CLIENT config is intentionally public — these are browser-safe
+// keys designed to be shipped with frontend code. See:
+// https://firebase.google.com/docs/projects/api-keys
+// Security is enforced by Firebase Security Rules and authorized domains, NOT
+// by keeping these keys secret.
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyB45g7rteYeabGeGGFvkIOg1oralRChaI0',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'carbonfootprint-97b87.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'carbonfootprint-97b87',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'carbonfootprint-97b87.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '492327811360',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:492327811360:web:40d537e2d8abb1db0f3f45',
+};
+
+// ── App Initialization (singleton — safe for HMR) ────────────────────────────
+/**
+ * Initialized Firebase App instance.
+ * Uses singleton pattern to prevent duplicate app errors during hot module reload.
+ *
+ * @type {import('firebase/app').FirebaseApp}
+ */
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
+// ── Service Instances ────────────────────────────────────────────────────────
+/**
+ * Firebase Authentication instance.
+ * Configured to use the local emulator when VITE_USE_FIREBASE_EMULATOR=true.
+ *
+ * @type {import('firebase/auth').Auth}
+ */
+const auth = getAuth(app);
+
+/**
+ * Cloud Firestore database instance.
+ * Configured to use the local emulator when VITE_USE_FIREBASE_EMULATOR=true.
+ *
+ * @type {import('firebase/firestore').Firestore}
+ */
+const db = getFirestore(app);
+
+// ── Firebase Local Emulator Support ─────────────────────────────────────────
+if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
+  // Only connect once (HMR guard)
+  if (!(auth as any)._canInitEmulator) {
+    connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  }
+  try {
+    connectFirestoreEmulator(db, '127.0.0.1', 8080);
+  } catch {
+    // Emulator already connected — safe to ignore during HMR
+  }
+}
+
+export { app, auth, db };

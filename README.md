@@ -8,6 +8,25 @@
 
 > **AI-powered platform to help individuals understand, track, and reduce their personal carbon footprint** — built for the Google Solution Challenge using 5 core Google services.
 
+## 🎯 Challenge 3: Carbon Footprint Awareness
+This project is designed specifically for **Challenge 3: Carbon Footprint Awareness Platform**, which asks developers to:
+> Design a solution that helps individuals understand, track, and reduce their carbon footprint through simple actions and personalized insights.
+
+Here is how EcoTrack directly maps to each objective:
+
+- **Understand** 📊
+  - **Dashboard Analytics**: Surfaced visually on the user dashboard, EcoTrack calculates and compares the user's monthly emissions ($kg\text{ CO}_2\text{e}$) directly against a standard global average benchmark ($400\text{ kg CO}_2\text{e}/\text{month}$), highlighting their relative footprint.
+- **Track** 🛣️
+  - **AI Bill Scanner**: Built using Gemini 2.0 Flash Vision, users simply upload a picture of a utility bill. The system extracts energy consumption ($kWh$) and maps it to carbon emissions.
+  - **Commute Tracker**: Integrates the Google Maps Directions API to precisely calculate commute distance and carbon footprints across travel modes (driving, transit, bicycling, walking).
+  - **Emissions History**: All logged metrics are persistently and securely recorded in Google Cloud Firestore for tracking progress over time.
+- **Reduce** 🌱
+  - **AI Eco-Insights**: Utilizing Gemini 2.0 Flash, EcoTrack generates highly personalized carbon reduction advice based on the user's actual travel modes, utility consumption, and historical emission trends.
+  - **Simple Actions**: Each generated recommendation strictly outlines:
+    1. **Why it matters** (contextual explanation of impact)
+    2. **Estimated CO₂ savings** (quantifiable impact)
+    3. **How to implement** (clear, 3-step action checklist)
+
 ---
 
 ## 🏗️ Architecture Overview

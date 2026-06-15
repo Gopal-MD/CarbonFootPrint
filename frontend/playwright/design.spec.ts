@@ -24,7 +24,8 @@ test.describe('Design System — Auth Page Visual', () => {
     });
     // Dark background: rgb values should all be low
     expect(bgColor).toMatch(/rgb/);
-    const [r, g, b] = bgColor.match(/\d+/g)!.map(Number);
+    const match = bgColor.match(/\d+/g);
+    const [r, g, b] = match ? match.map(Number) : [255, 255, 255];
     // Dark theme: each channel should be < 50
     expect(r + g + b).toBeLessThan(150);
   });
@@ -87,7 +88,7 @@ test.describe('Responsive Layout — Mobile View', () => {
     const box = await btn.boundingBox();
     expect(box).not.toBeNull();
     // Button should be reasonably wide on mobile (>200px)
-    expect(box!.width).toBeGreaterThan(200);
+    expect(box ? box.width : 0).toBeGreaterThan(200);
   });
 
   test('page does not overflow horizontally on mobile', async ({ page }) => {
@@ -163,7 +164,7 @@ test.describe('Navigation Flow — URL History', () => {
 
 test.describe('Error Resilience', () => {
   test('page handles console errors gracefully — no uncaught JS errors on load', async ({ page }) => {
-    const jsErrors: string[] = [];
+    const jsErrors = [];
     page.on('pageerror', (err) => jsErrors.push(err.message));
     await page.goto('/auth');
     await page.waitForLoadState('networkidle');
@@ -175,7 +176,7 @@ test.describe('Error Resilience', () => {
   });
 
   test('page handles 404 without uncaught JS errors', async ({ page }) => {
-    const jsErrors: string[] = [];
+    const jsErrors = [];
     page.on('pageerror', (err) => jsErrors.push(err.message));
     await page.goto('/xyz-completely-missing');
     const criticalErrors = jsErrors.filter(

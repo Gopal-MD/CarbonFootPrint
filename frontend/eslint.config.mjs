@@ -20,6 +20,7 @@ export default [
       'playwright-report/**',
       '*.config.js',
       'vite.config.js',
+      'test-live-*.js',
     ],
   },
 
@@ -65,6 +66,8 @@ export default [
         setInterval: 'readonly',
         clearInterval: 'readonly',
         AbortController: 'readonly',
+        File: 'readonly',
+        requestAnimationFrame: 'readonly',
         // Vite env
         import: 'readonly',
       },
@@ -135,6 +138,8 @@ export default [
         beforeAll: 'readonly',
         afterAll: 'readonly',
         vi: 'readonly',
+        global: 'readonly',
+        File: 'readonly',
       },
     },
     rules: {
@@ -151,6 +156,8 @@ export default [
         page: 'readonly',
         browser: 'readonly',
         context: 'readonly',
+        window: 'readonly',
+        document: 'readonly',
       },
     },
     rules: {

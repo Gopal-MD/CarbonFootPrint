@@ -12,19 +12,6 @@
 
 import { test, expect } from '@playwright/test';
 
-// ── Helper: mock Firebase auth so we can reach protected routes ───────────────
-async function mockAuthAndVisit(page, path) {
-  // Intercept Firebase auth state to return a mock user
-  await page.addInitScript(() => {
-    window.__MOCK_FIREBASE_USER__ = {
-      uid: 'e2e-test-uid',
-      displayName: 'E2E Tester',
-      email: 'e2e@test.com',
-      getIdToken: async () => 'mock-e2e-token-xyz',
-    };
-  });
-  await page.goto(path);
-}
 
 test.describe('Commute Carbon Tracker — Page Render', () => {
   test.beforeEach(async ({ page }) => {
@@ -144,7 +131,7 @@ test.describe('Performance & Meta — Auth Page', () => {
     await expect(metaDesc).toHaveCount(1);
     const content = await metaDesc.getAttribute('content');
     expect(content).toBeTruthy();
-    expect(content!.length).toBeGreaterThan(20);
+    expect(content.length).toBeGreaterThan(20);
   });
 
   test('page has a viewport meta tag', async ({ page }) => {
@@ -164,7 +151,7 @@ test.describe('Performance & Meta — Auth Page', () => {
     const charset = page.locator('meta[charset]');
     await expect(charset).toHaveCount(1);
     const val = await charset.getAttribute('charset');
-    expect(val!.toUpperCase()).toBe('UTF-8');
+    expect(val.toUpperCase()).toBe('UTF-8');
   });
 });
 

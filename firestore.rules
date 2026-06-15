@@ -37,13 +37,13 @@ service cloud.firestore {
     }
 
     // ── Emission records ───────────────────────────────────────────────────
-    // Each record belongs to a user and contains carbon data for one month
-    match /emissions/{userId}/records/{recordId} {
+    // Each record belongs to a user and contains carbon data
+    match /users/{userId}/emissions/{recordId} {
       allow read:   if isOwner(userId);
       allow create: if isOwner(userId)
                     && isValidNumber(request.resource.data.kgCO2e, 0, 100000)
-                    && isValidString(request.resource.data.month, 7)     // YYYY-MM
-                    && isValidString(request.resource.data.source, 50);  // commute|utility|food
+                    && isValidString(request.resource.data.date, 10)
+                    && request.resource.data.category in ['commute', 'utility', 'food', 'other'];
       allow update: if isOwner(userId)
                     && isValidNumber(request.resource.data.kgCO2e, 0, 100000);
       allow delete: if isOwner(userId);

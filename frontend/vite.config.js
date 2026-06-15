@@ -88,7 +88,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: ['./src/test/setup.js'],
+    setupFiles: ['./src/test/setup.ts'],
     css: true,
     coverage: {
       provider: 'v8',
@@ -104,14 +104,14 @@ export default defineConfig({
       exclude: [
         'node_modules/',
         'src/test/',
-        'src/main.jsx',
+        'src/main.tsx',
         '**/*.config.*',
         '**/types/**',
         'playwright/**',
         'dist/**',
       ],
     },
-    include: ['src/**/*.{test,spec}.{js,jsx}'],
+    include: ['src/**/*.{test,spec}.{js,jsx,ts,tsx}'],
     exclude: ['node_modules', 'dist', 'playwright'],
   },
 });
