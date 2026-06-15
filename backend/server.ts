@@ -323,7 +323,7 @@ app.use((err: any, req: Request, res: Response, _next: NextFunction): void | Res
 // ─────────────────────────────────────────────────────────────────────────────
 // Server Start
 // ─────────────────────────────────────────────────────────────────────────────
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   logger.info(`
 ╔══════════════════════════════════════════════════════════════╗
 ║         EcoTrack — Carbon Footprint Platform Backend         ║
