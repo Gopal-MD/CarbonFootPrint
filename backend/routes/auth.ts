@@ -11,9 +11,61 @@ import logger from '../utils/logger.js';
 export const authRouter = Router();
 
 /**
+ * Verify a Firebase ID token and return decoded user claims.
+ *
+ * **Purpose:** Used by the frontend immediately after Firebase client-side
+ * authentication to validate the token server-side and establish a trusted
+ * session. Returns normalized user claims for the frontend to store.
+ *
+ * **Why this endpoint exists:** Firebase Authentication tokens are verified
+ * client-side by default, but server-side verification (Firebase Admin SDK)
+ * is the only way to ensure the token hasn't been revoked and to access
+ * server-side claims. This endpoint bridges that gap.
+ *
+ * **Access Control:**
+ * - Public endpoint — accepts any Firebase ID token
+ * - Token is verified with `checkRevoked: true` (detects sign-outs)
+ * - Expired or revoked tokens are rejected with structured 401 errors
+ *
+ * **Behavior:**
+ * 1. Validate `idToken` field (required, string, ≥100 chars)
+ * 2. Call Firebase Admin SDK `verifyIdToken(idToken, checkRevoked=true)`
+ * 3. On success: return normalized user claims object
+ * 4. On failure: return structured 401 with specific error code
+ *
+ * **Error Cases:**
+ * - `422`: Missing or malformed `idToken` field
+ * - `401/TOKEN_EXPIRED`: Token has expired; client should refresh
+ * - `401/TOKEN_REVOKED`: Token was revoked (sign-out); client must re-authenticate
+ * - `401/INVALID_TOKEN`: Generic verification failure
+ *
+ * @route POST /api/auth/verify
+ * @access Public
+ *
+ * @example
  * POST /api/auth/verify
- * Verifies a Firebase ID token and returns decoded user claims.
- * Used by the frontend to establish a trusted server-side session.
+ * Content-Type: application/json
+ *
+ * { "idToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6Ij..." }
+ *
+ * // Success (200)
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "uid": "abc123uid",
+ *     "email": "user@example.com",
+ *     "emailVerified": true,
+ *     "displayName": "Gopal M"
+ *   }
+ * }
+ *
+ * // Token expired (401)
+ * {
+ *   "success": false,
+ *   "error": "TOKEN_EXPIRED",
+ *   "message": "Firebase ID token has expired. Please sign in again.",
+ *   "statusCode": 401
+ * }
  */
 authRouter.post(
   '/verify',
