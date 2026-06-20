@@ -11,8 +11,8 @@ import { body, query, validationResult } from 'express-validator';
 import { requireAuth, AuthenticatedRequest } from '../middleware/authMiddleware.js';
 import { BaseDB } from '../services/BaseDB.js';
 import { sendSuccess, sendError, sendValidationError } from '../utils/apiResponse.js';
-import { EmissionRecord } from '../../shared/types/index.js';
-import { WhereFilterOp } from 'firebase-admin/firestore';
+import type { EmissionRecord } from '../../shared/types/index.js';
+import type { FirestoreFilter } from '../types/eco_types.js';
 import logger from '../utils/logger.js';
 
 export const emissionsRouter = Router();
@@ -26,8 +26,8 @@ class EmissionsDB extends BaseDB {
    * @param record - Emission data.
    * @returns Document ID on success.
    */
-  async addRecord(userId: string, record: any): Promise<{ id: string }> {
-    return this.addDoc(`users/${userId}/emissions`, record);
+  async addRecord(userId: string, record: Omit<EmissionRecord, 'id'>): Promise<{ id: string }> {
+    return this.addDoc<EmissionRecord>(`users/${userId}/emissions`, record as EmissionRecord);
   }
 
   /**
@@ -38,15 +38,15 @@ class EmissionsDB extends BaseDB {
    * @returns List of emission records.
    */
   async getRecords(userId: string, options: { category?: string; limit?: number } = {}): Promise<EmissionRecord[]> {
-    const filters: Array<[string, WhereFilterOp, any]> = [];
+    const filters: FirestoreFilter[] = [];
     if (options.category) {
       filters.push(['category', '==', options.category]);
     }
-    return this.queryCollection(`users/${userId}/emissions`, filters, {
+    return this.queryCollection<EmissionRecord>(`users/${userId}/emissions`, filters, {
       orderBy: 'createdAt',
       orderDirection: 'desc',
-      limit: options.limit || 20,
-    }) as Promise<EmissionRecord[]>;
+      limit: options.limit ?? 20,
+    });
   }
 }
 
@@ -66,7 +66,7 @@ emissionsRouter.post(
     body('date').isISO8601().withMessage('date must be a valid ISO 8601 date'),
     body('metadata').optional().isObject(),
   ],
-  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<any> => {
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void | Response> => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -109,7 +109,7 @@ emissionsRouter.get(
     query('category').optional().isIn(['commute', 'utility', 'food', 'other']),
     query('limit').optional().isInt({ min: 1, max: 100 }),
   ],
-  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<any> => {
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void | Response> => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {

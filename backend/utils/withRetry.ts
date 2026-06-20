@@ -6,7 +6,7 @@ interface ResolvedRetryConfig {
   initialDelayMs: number;
   backoffFactor: number;
   maxDelayMs: number;
-  shouldRetry: (error: any) => boolean;
+  shouldRetry: (error: unknown) => boolean;
 }
 
 /**
@@ -24,24 +24,31 @@ const DEFAULT_CONFIG: ResolvedRetryConfig = {
  * Default predicate determining whether an error is retryable.
  * Retries on network errors and specific HTTP status codes.
  *
- * @param error - The error thrown by the wrapped function.
+ * @param error - The unknown value thrown by the wrapped function.
  * @returns True if the call should be retried.
  */
-function defaultShouldRetry(error: any): boolean {
+function defaultShouldRetry(error: unknown): boolean {
   if (error && typeof error === 'object') {
+    const err = error as Record<string, unknown>;
+
     // Network-level errors (ECONNRESET, ETIMEDOUT, etc.)
-    if ('code' in error && typeof error.code === 'string' && ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNREFUSED'].includes(error.code)) {
+    const RETRIABLE_CODES = ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNREFUSED'];
+    if ('code' in err && typeof err.code === 'string' && RETRIABLE_CODES.includes(err.code)) {
       return true;
     }
 
     // HTTP status-based retry (rate limiting, server errors)
-    const status = error.status || error.statusCode || (error.response && error.response.status);
-    if (status) {
+    const responseStatus =
+      (err.response && typeof err.response === 'object')
+        ? (err.response as Record<string, unknown>).status
+        : undefined;
+    const status = err.status ?? err.statusCode ?? responseStatus;
+    if (typeof status === 'number') {
       return status === 429 || status === 503 || status === 502 || status === 504;
     }
 
     // Retry on generic timeout errors
-    if ('message' in error && typeof error.message === 'string' && /timeout|timed out/i.test(error.message)) {
+    if ('message' in err && typeof err.message === 'string' && /timeout|timed out/i.test(err.message)) {
       return true;
     }
   }
@@ -79,7 +86,7 @@ export async function withRetry<T>(fn: () => Promise<T>, config: RetryConfig = {
   const resolvedConfig: ResolvedRetryConfig = { ...DEFAULT_CONFIG, ...config } as ResolvedRetryConfig;
   const { maxAttempts, shouldRetry } = resolvedConfig;
 
-  let lastError: any;
+  let lastError: unknown;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
@@ -90,15 +97,16 @@ export async function withRetry<T>(fn: () => Promise<T>, config: RetryConfig = {
       }
 
       return result;
-    } catch (error: any) {
+    } catch (error: unknown) {
       lastError = error;
 
       const isLastAttempt = attempt === maxAttempts - 1;
       const retryable = shouldRetry(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
 
       logger.warn(
         `[withRetry] ${operationName} failed on attempt ${attempt + 1}/${maxAttempts}. ` +
-          `Retryable: ${retryable}. Error: ${error.message}`
+          `Retryable: ${retryable}. Error: ${errorMessage}`
       );
 
       if (isLastAttempt || !retryable) {
@@ -113,9 +121,9 @@ export async function withRetry<T>(fn: () => Promise<T>, config: RetryConfig = {
   }
 
   // Attach retry context to the error for upstream error handlers
-  if (lastError) {
-    lastError.retriesExhausted = true;
-    lastError.operationName = operationName;
+  if (lastError && typeof lastError === 'object') {
+    (lastError as Record<string, unknown>).retriesExhausted = true;
+    (lastError as Record<string, unknown>).operationName = operationName;
     throw lastError;
   }
   throw new Error(`[withRetry] ${operationName} failed with unknown error`);

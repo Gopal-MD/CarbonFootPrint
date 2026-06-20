@@ -76,10 +76,14 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
 
     logger.debug(`[AuthMiddleware] Authenticated user: ${decodedToken.uid.substring(0, 8)}...`);
     return next();
-  } catch (error: any) {
-    logger.warn(`[AuthMiddleware] Token verification failed: ${error.code || error.message}`);
+  } catch (error: unknown) {
+    const firebaseCode = (error && typeof error === 'object' && 'code' in error)
+      ? String((error as { code: unknown }).code)
+      : null;
+    const firebaseMsg = error instanceof Error ? error.message : String(error);
+    logger.warn(`[AuthMiddleware] Token verification failed: ${firebaseCode ?? firebaseMsg}`);
 
-    if (error.code === 'auth/id-token-expired') {
+    if (firebaseCode === 'auth/id-token-expired') {
       return res.status(401).json({
         success: false,
         error: 'TOKEN_EXPIRED',
@@ -88,7 +92,7 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
       });
     }
 
-    if (error.code === 'auth/id-token-revoked') {
+    if (firebaseCode === 'auth/id-token-revoked') {
       return res.status(401).json({
         success: false,
         error: 'TOKEN_REVOKED',

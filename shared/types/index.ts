@@ -24,13 +24,14 @@ export interface EmissionMetadata {
 }
 
 export interface EmissionRecord {
-  id: string;
+  id?: string;
   userId: string;
   category: EmissionCategory;
   kgCO2e: number;
   date: string;
-  createdAt: string;
-  metadata: EmissionMetadata;
+  createdAt?: string;  // Set server-side by Firestore
+  updatedAt?: string;  // Set server-side by Firestore
+  metadata?: EmissionMetadata;
 }
 
 export interface CommuteInput {
@@ -84,6 +85,6 @@ export interface RetryConfig {
   initialDelayMs?: number;
   backoffFactor?: number;
   maxDelayMs?: number;
-  shouldRetry?: (error: any) => boolean;
+  shouldRetry?: (error: unknown) => boolean;
 }
 

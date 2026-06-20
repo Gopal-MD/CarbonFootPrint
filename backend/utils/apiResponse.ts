@@ -8,22 +8,29 @@
  */
 
 import { Response } from 'express';
-import { Result } from 'express-validator';
+import type { Result, ValidationError } from 'express-validator';
 
+/** Options for the sendSuccess helper. */
 export interface SuccessOptions {
   message?: string;
   statusCode?: number;
+}
+
+/** A normalized field-level validation error returned in 422 responses. */
+export interface ValidationErrorDetail {
+  field: string;
+  message: string;
 }
 
 /**
  * Sends a standardized success response.
  *
  * @param res - Express response object.
- * @param data - The response payload.
+ * @param data - The response payload (any JSON-serializable value).
  * @param options - Response options.
  * @returns The Express Response.
  */
-export function sendSuccess(res: Response, data: any, options: SuccessOptions = {}): Response {
+export function sendSuccess(res: Response, data: unknown, options: SuccessOptions = {}): Response {
   const { message, statusCode = 200 } = options;
   return res.status(statusCode).json({
     success: true,
@@ -43,7 +50,13 @@ export function sendSuccess(res: Response, data: any, options: SuccessOptions = 
  * @param details - Field-level error details.
  * @returns The Express Response.
  */
-export function sendError(res: Response, error: string, message: string, statusCode = 500, details?: any[]): Response {
+export function sendError(
+  res: Response,
+  error: string,
+  message: string,
+  statusCode = 500,
+  details?: ValidationErrorDetail[]
+): Response {
   return res.status(statusCode).json({
     success: false,
     error,
@@ -61,12 +74,21 @@ export function sendError(res: Response, error: string, message: string, statusC
  * @param context - Context label for the error message.
  * @returns The Express Response.
  */
-export function sendValidationError(res: Response, validationResult: Result<any>, context = 'Input'): Response {
+export function sendValidationError(
+  res: Response,
+  validationResult: Result<ValidationError>,
+  context = 'Input'
+): Response {
+  const details: ValidationErrorDetail[] = validationResult.array().map((e: ValidationError) => ({
+    field: ('path' in e ? e.path : '') || ('param' in e ? (e as { param?: string }).param : '') || 'unknown',
+    message: e.msg as string,
+  }));
+
   return sendError(
     res,
     'VALIDATION_ERROR',
     `Invalid ${context} — see details for field-level errors.`,
     422,
-    validationResult.array().map((e: any) => ({ field: e.path || e.param, message: e.msg }))
+    details
   );
 }

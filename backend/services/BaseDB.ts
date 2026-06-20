@@ -5,12 +5,19 @@
  * All application database logic MUST go through this class (or subclasses)
  * to ensure consistent error handling, logging, and testability.
  *
+ * Design decisions:
+ * - Generic methods (`getDoc<T>`, `addDoc<T>`) allow callers to specify the
+ *   exact document shape — no `any` leaks across the boundary.
+ * - All caught errors are narrowed from `unknown` before accessing `.message`.
+ * - Timestamps are normalised to ISO strings at the deserialization layer.
+ *
  * @module services/BaseDB
  */
 
 import { initializeApp, getApps, getApp, cert, App } from 'firebase-admin/app';
-import { getFirestore, FieldValue, Timestamp, Firestore, WhereFilterOp } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue, Timestamp, Firestore } from 'firebase-admin/firestore';
 import { createModuleLogger } from '../utils/logger.js';
+import type { FirestoreFilter, QueryOptions } from '../types/eco_types.js';
 
 const logger = createModuleLogger('BaseDB');
 
@@ -33,9 +40,9 @@ function initializeFirebaseAdmin(): App {
     throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON environment variable is not set.');
   }
 
-  let serviceAccount;
+  let serviceAccount: object;
   try {
-    serviceAccount = JSON.parse(serviceAccountJson);
+    serviceAccount = JSON.parse(serviceAccountJson) as object;
   } catch {
     throw new Error(
       'FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON. ' +
@@ -65,10 +72,23 @@ function getDb(): Firestore {
   return _db;
 }
 
+// ── Error message helper ──────────────────────────────────────────────────────
+/**
+ * Safely extracts a string message from an unknown thrown value.
+ *
+ * @param error - Unknown thrown value from a catch block.
+ * @returns Human-readable error message string.
+ */
+function toErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return JSON.stringify(error);
+}
+
 // ── BaseDB Class ──────────────────────────────────────────────────────────────
 /**
  * Abstract base class for Firestore database operations.
- * Provides CRUD methods with consistent error handling and logging.
+ * Provides generic CRUD methods with consistent error handling and logging.
  * Extend this class in domain-specific service classes.
  */
 export class BaseDB {
@@ -88,14 +108,18 @@ export class BaseDB {
   }
 
   /**
-   * Retrieves a single document by path.
+   * Retrieves a single document by path and returns it typed as T.
    *
+   * @template T - Expected document shape.
    * @param collectionPath - Firestore collection path (e.g., 'users').
    * @param docId - Document ID.
-   * @returns The document data with its ID, or null if not found.
+   * @returns The document data with its ID typed as T, or null if not found.
    * @throws {Error} On Firestore read failure.
+   *
+   * @example
+   * const record = await db.getDoc<EmissionRecord>('users/uid/emissions', 'rec123');
    */
-  async getDoc(collectionPath: string, docId: string): Promise<any> {
+  async getDoc<T extends object>(collectionPath: string, docId: string): Promise<(T & { id: string }) | null> {
     try {
       const ref = this.db.collection(collectionPath).doc(docId);
       const snap = await ref.get();
@@ -105,70 +129,79 @@ export class BaseDB {
         return null;
       }
 
-      return { id: snap.id, ...snap.data() };
-    } catch (error: any) {
-      logger.error(`Failed to get document ${collectionPath}/${docId}`, { error: error.message });
-      throw new Error(`Database read failed: ${error.message}`);
+      return { id: snap.id, ...this._deserialize(snap.data() ?? {}) } as T & { id: string };
+    } catch (error: unknown) {
+      const message = toErrorMessage(error);
+      logger.error(`Failed to get document ${collectionPath}/${docId}`, { error: message });
+      throw new Error(`Database read failed: ${message}`);
     }
   }
 
   /**
    * Creates or overwrites a document at the given path.
    *
+   * @template T - Document data shape (must be a plain object).
    * @param collectionPath - Firestore collection path.
    * @param docId - Document ID.
    * @param data - Data to write. `createdAt` is automatically added if absent.
    * @returns The document ID.
    * @throws {Error} On Firestore write failure.
    */
-  async setDoc(collectionPath: string, docId: string, data: any): Promise<{ id: string }> {
+  async setDoc<T extends object>(collectionPath: string, docId: string, data: T): Promise<{ id: string }> {
     try {
       const ref = this.db.collection(collectionPath).doc(docId);
       const payload = {
         ...data,
         updatedAt: FieldValue.serverTimestamp(),
-        createdAt: data.createdAt || FieldValue.serverTimestamp(),
+        createdAt: (data as Record<string, unknown>).createdAt ?? FieldValue.serverTimestamp(),
       };
 
       await ref.set(payload);
       logger.debug(`Document set: ${collectionPath}/${docId}`);
       return { id: docId };
-    } catch (error: any) {
-      logger.error(`Failed to set document ${collectionPath}/${docId}`, { error: error.message });
-      throw new Error(`Database write failed: ${error.message}`);
+    } catch (error: unknown) {
+      const message = toErrorMessage(error);
+      logger.error(`Failed to set document ${collectionPath}/${docId}`, { error: message });
+      throw new Error(`Database write failed: ${message}`);
     }
   }
 
   /**
    * Partially updates an existing document (merge semantics).
    *
+   * @template T - Partial document shape.
    * @param collectionPath - Firestore collection path.
    * @param docId - Document ID.
    * @param data - Fields to update. Missing fields are preserved.
    * @returns The document ID.
    * @throws {Error} On Firestore update failure.
    */
-  async updateDoc(collectionPath: string, docId: string, data: any): Promise<{ id: string }> {
+  async updateDoc<T extends object>(collectionPath: string, docId: string, data: T): Promise<{ id: string }> {
     try {
       const ref = this.db.collection(collectionPath).doc(docId);
       await ref.update({ ...data, updatedAt: FieldValue.serverTimestamp() });
       logger.debug(`Document updated: ${collectionPath}/${docId}`);
       return { id: docId };
-    } catch (error: any) {
-      logger.error(`Failed to update document ${collectionPath}/${docId}`, { error: error.message });
-      throw new Error(`Database update failed: ${error.message}`);
+    } catch (error: unknown) {
+      const message = toErrorMessage(error);
+      logger.error(`Failed to update document ${collectionPath}/${docId}`, { error: message });
+      throw new Error(`Database update failed: ${message}`);
     }
   }
 
   /**
    * Adds a new document to a collection with an auto-generated ID.
    *
+   * @template T - Document data shape (must be a plain object).
    * @param collectionPath - Firestore collection path.
    * @param data - Data to write.
    * @returns The auto-generated document ID.
    * @throws {Error} On Firestore write failure.
+   *
+   * @example
+   * const { id } = await db.addDoc<EmissionRecord>('users/uid/emissions', record);
    */
-  async addDoc(collectionPath: string, data: any): Promise<{ id: string }> {
+  async addDoc<T extends object>(collectionPath: string, data: T): Promise<{ id: string }> {
     try {
       const ref = this.db.collection(collectionPath);
       const payload = {
@@ -180,35 +213,37 @@ export class BaseDB {
       const docRef = await ref.add(payload);
       logger.debug(`Document added to ${collectionPath}: ${docRef.id}`);
       return { id: docRef.id };
-    } catch (error: any) {
-      logger.error(`Failed to add document to ${collectionPath}`, { error: error.message });
-      throw new Error(`Database write failed: ${error.message}`);
+    } catch (error: unknown) {
+      const message = toErrorMessage(error);
+      logger.error(`Failed to add document to ${collectionPath}`, { error: message });
+      throw new Error(`Database write failed: ${message}`);
     }
   }
 
   /**
    * Queries a collection with optional filters, ordering, and pagination.
    *
+   * @template T - Expected document shape for each result.
    * @param collectionPath - Firestore collection path.
-   * @param filters - Where clauses.
-   * @param options - Query options.
-   * @returns Array of document data objects with IDs.
+   * @param filters - Where clauses as typed tuples.
+   * @param options - Query options (orderBy, limit).
+   * @returns Array of typed document data objects with IDs.
    * @throws {Error} On Firestore query failure.
    */
-  async queryCollection(
+  async queryCollection<T extends object>(
     collectionPath: string,
-    filters: Array<[string, WhereFilterOp, any]> = [],
-    options: { orderBy?: string; orderDirection?: 'asc' | 'desc'; limit?: number } = {}
-  ): Promise<any[]> {
+    filters: FirestoreFilter[] = [],
+    options: QueryOptions = {}
+  ): Promise<(T & { id: string })[]> {
     try {
-      let query: import('firebase-admin/firestore').Query = this.db.collection(collectionPath);
+      let query: FirebaseFirestore.Query = this.db.collection(collectionPath);
 
       for (const [field, op, value] of filters) {
         query = query.where(field, op, value);
       }
 
       if (options.orderBy) {
-        query = query.orderBy(options.orderBy, options.orderDirection || 'desc');
+        query = query.orderBy(options.orderBy, options.orderDirection ?? 'desc');
       }
 
       if (options.limit) {
@@ -220,10 +255,11 @@ export class BaseDB {
       return snapshot.docs.map((doc) => ({
         id: doc.id,
         ...this._deserialize(doc.data()),
-      }));
-    } catch (error: any) {
-      logger.error(`Failed to query collection ${collectionPath}`, { error: error.message });
-      throw new Error(`Database query failed: ${error.message}`);
+      })) as (T & { id: string })[];
+    } catch (error: unknown) {
+      const message = toErrorMessage(error);
+      logger.error(`Failed to query collection ${collectionPath}`, { error: message });
+      throw new Error(`Database query failed: ${message}`);
     }
   }
 
@@ -239,9 +275,10 @@ export class BaseDB {
     try {
       await this.db.collection(collectionPath).doc(docId).delete();
       logger.debug(`Document deleted: ${collectionPath}/${docId}`);
-    } catch (error: any) {
-      logger.error(`Failed to delete document ${collectionPath}/${docId}`, { error: error.message });
-      throw new Error(`Database delete failed: ${error.message}`);
+    } catch (error: unknown) {
+      const message = toErrorMessage(error);
+      logger.error(`Failed to delete document ${collectionPath}/${docId}`, { error: message });
+      throw new Error(`Database delete failed: ${message}`);
     }
   }
 
@@ -249,17 +286,17 @@ export class BaseDB {
    * Converts Firestore Timestamps to ISO strings in a document.
    * Ensures consistent serialization across the API boundary.
    *
-   * @param data - Raw Firestore document data.
+   * @param data - Raw Firestore document data (Record<string, unknown>).
    * @returns Data with Timestamps converted to ISO strings.
    * @private
    */
-  private _deserialize(data: any): any {
-    const result = { ...data };
+  private _deserialize(data: Record<string, unknown>): Record<string, unknown> {
+    const result: Record<string, unknown> = { ...data };
     for (const [key, value] of Object.entries(result)) {
       if (value instanceof Timestamp) {
         result[key] = value.toDate().toISOString();
       } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-        result[key] = this._deserialize(value);
+        result[key] = this._deserialize(value as Record<string, unknown>);
       }
     }
     return result;

@@ -25,7 +25,7 @@ authRouter.post(
       .isLength({ min: 100 })
       .withMessage('idToken appears to be invalid (too short)'),
   ],
-  async (req: Request, res: Response, next: NextFunction): Promise<any> => {
+  async (req: Request, res: Response, next: NextFunction): Promise<void | Response> => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -57,9 +57,12 @@ authRouter.post(
           displayName: decodedToken.name,
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Firebase auth errors have specific codes
-      if (error && error.code === 'auth/id-token-expired') {
+      const firebaseCode = (error && typeof error === 'object' && 'code' in error)
+        ? String((error as { code: unknown }).code)
+        : null;
+      if (firebaseCode === 'auth/id-token-expired') {
         return res.status(401).json({
           success: false,
           error: 'TOKEN_EXPIRED',
@@ -67,7 +70,7 @@ authRouter.post(
           statusCode: 401,
         });
       }
-      if (error && error.code === 'auth/id-token-revoked') {
+      if (firebaseCode === 'auth/id-token-revoked') {
         return res.status(401).json({
           success: false,
           error: 'TOKEN_REVOKED',

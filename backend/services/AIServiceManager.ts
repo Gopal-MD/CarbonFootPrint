@@ -12,6 +12,7 @@
  */
 
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, GenerativeModel } from '@google/generative-ai';
+import type { CacheEntry } from '../types/eco_types.js';
 import { withRetry } from '../utils/withRetry.js';
 import { createModuleLogger } from '../utils/logger.js';
 import { isStubEnabled } from '../utils/validateEnv.js';
@@ -22,16 +23,13 @@ const logger = createModuleLogger('AIServiceManager');
 const CACHE_MAX_SIZE = 100;
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
-interface CacheEntry {
-  value: any;
-  expiresAt: number;
-}
+// CacheEntry<T> is imported from types/eco_types.ts
 
 /**
  * Simple TTL-based LRU cache for AI responses.
  * Uses a Map for O(1) access and insertion-order for LRU eviction.
  */
-const responseCache = new Map<string, CacheEntry>();
+const responseCache = new Map<string, CacheEntry<unknown>>();
 
 /**
  * Generates a deterministic cache key from a string input.
@@ -51,11 +49,12 @@ function generateCacheKey(input: string): string {
 /**
  * Retrieves a value from cache if present and not expired.
  *
+ * @template T - The type of the cached value.
  * @param key - Cache key.
- * @returns The cached value, or null if missing/expired.
+ * @returns The cached value typed as T, or null if missing/expired.
  */
-function getFromCache(key: string): any {
-  const entry = responseCache.get(key);
+function getFromCache<T>(key: string): T | null {
+  const entry = responseCache.get(key) as CacheEntry<T> | undefined;
   if (!entry) {
     return null;
   }
@@ -65,18 +64,19 @@ function getFromCache(key: string): any {
   }
   // LRU: move to end by re-inserting
   responseCache.delete(key);
-  responseCache.set(key, entry);
+  responseCache.set(key, entry as CacheEntry<unknown>);
   return entry.value;
 }
 
 /**
  * Stores a value in the cache, evicting oldest entries if at capacity.
  *
+ * @template T - The type of value being cached.
  * @param key - Cache key.
  * @param value - Value to store.
  * @param ttlMs - Time-to-live in milliseconds.
  */
-function setInCache(key: string, value: any, ttlMs = CACHE_TTL_MS): void {
+function setInCache<T>(key: string, value: T, ttlMs = CACHE_TTL_MS): void {
   if (responseCache.size >= CACHE_MAX_SIZE) {
     // Evict the oldest entry (first inserted key)
     const oldestKey = responseCache.keys().next().value;
@@ -206,7 +206,7 @@ class AIServiceManager {
     const cacheKey = generateCacheKey(sanitizedPrompt);
 
     if (!options.skipCache) {
-      const cached = getFromCache(cacheKey);
+      const cached = getFromCache<string>(cacheKey);
       if (cached) {
         logger.debug('[AIServiceManager] Cache hit for insight prompt');
         return { text: cached, cached: true };
@@ -252,10 +252,10 @@ class AIServiceManager {
     }
 
     const cacheKey = generateCacheKey(base64Image.slice(0, 200));
-    const cached = getFromCache(cacheKey);
+    const cached = getFromCache<BillScanResponse>(cacheKey);
     if (cached) {
       logger.debug('[AIServiceManager] Cache hit for bill scan');
-      return { ...cached, cached: true };
+      return { ...cached, cached: true } as BillScanResponse;
     }
 
     const extractionPrompt = `You are an expert at extracting energy usage data from utility bills.
@@ -336,8 +336,9 @@ Rules:
           ? Math.max(0, Math.min(1, parsed.confidence))
           : 0.5,
       };
-    } catch (error: any) {
-      logger.warn('[AIServiceManager] Failed to parse bill scan JSON response', { error: error.message, rawText });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn('[AIServiceManager] Failed to parse bill scan JSON response', { error: message, rawText });
       return { kWhExtracted: null, billProvider: null, billPeriod: null, confidence: 0 };
     }
   }

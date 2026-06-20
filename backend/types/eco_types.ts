@@ -1,179 +1,286 @@
 /**
- * @fileoverview Core data type definitions for the Carbon Footprint Platform.
- * All types are defined as JSDoc @typedef for use across backend modules.
- * These serve as the shared contract between routes, services, and the database.
+ * @fileoverview Complete TypeScript type definitions for the EcoTrack platform.
+ *
+ * All domain models, API request/response shapes, cache types, and utility
+ * interfaces are consolidated here. No `any` types — every parameter and
+ * return value is explicit, enabling full IDE autocompletion and compile-time
+ * safety across the entire backend.
+ *
+ * Organization:
+ * 1. Primitives & enums
+ * 2. Domain models (stored in Firestore)
+ * 3. API request DTOs (validated at route layer)
+ * 4. API response shapes (returned to clients)
+ * 5. Cache internals
+ * 6. Firestore query helpers
+ * 7. Retry configuration
  *
  * @module types/eco_types
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
-// USER DOMAIN
+// 1. PRIMITIVES & ENUMS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Google Maps travel mode strings accepted by the Directions API. */
+export type TravelMode = 'DRIVING' | 'TRANSIT' | 'WALKING' | 'BICYCLING';
+
+/** Emission source categories stored per record. */
+export type EmissionCategory = 'commute' | 'utility' | 'food' | 'other';
+
+/** Fuel types for passenger vehicle calculations. */
+export type VehicleFuelType = 'PETROL' | 'DIESEL' | 'EV' | 'HYBRID';
+
+/** Confidence level for AI extraction operations (0–1 range). */
+export type ConfidenceScore = number;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. DOMAIN MODELS (Firestore documents)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * A registered user profile, stored in Firestore under `users/{uid}`.
- *
- * @typedef {object} UserProfile
- * @property {string} uid - Firebase Authentication UID (document ID).
- * @property {string} email - User's email address.
- * @property {string|null} displayName - Optional display name.
- * @property {string|null} photoURL - Optional avatar URL.
- * @property {number} monthlyGoalKg - Monthly CO₂e reduction goal in kg.
- * @property {string} createdAt - ISO 8601 creation timestamp.
- * @property {string} updatedAt - ISO 8601 last-updated timestamp.
+ * A registered user profile.
+ * Stored in Firestore at: `users/{uid}`
  */
-
-// ─────────────────────────────────────────────────────────────────────────────
-// EMISSION RECORDS
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Emission categories supported by the platform.
- *
- * @typedef {'commute'|'utility'|'food'|'other'} EmissionCategory
- */
-
-/**
- * A single carbon emission record, stored in Firestore under
- * `users/{uid}/emissions/{recordId}`.
- *
- * @typedef {object} EmissionRecord
- * @property {string} id - Auto-generated Firestore document ID.
- * @property {string} userId - The owning user's Firebase UID.
- * @property {EmissionCategory} category - Source category of the emission.
- * @property {number} kgCO2e - Emission quantity in kg CO₂ equivalent.
- * @property {string} date - ISO 8601 date string (YYYY-MM-DD) for the emission event.
- * @property {string} createdAt - ISO 8601 creation timestamp.
- * @property {EmissionMetadata} metadata - Category-specific metadata.
- */
+export interface UserProfile {
+  uid: string;
+  email: string;
+  displayName: string | null;
+  photoURL: string | null;
+  /** Monthly CO₂e reduction goal in kg. */
+  monthlyGoalKg: number;
+  createdAt: string;  // ISO 8601
+  updatedAt: string;  // ISO 8601
+}
 
 /**
  * Category-specific metadata attached to an EmissionRecord.
- * Fields are optional and vary by category.
- *
- * @typedef {object} EmissionMetadata
- * @property {string} [origin] - Commute: start address.
- * @property {string} [destination] - Commute: end address.
- * @property {string} [travelMode] - Commute: DRIVING | TRANSIT | WALKING | BICYCLING.
- * @property {number} [distanceKm] - Commute: distance in kilometers.
- * @property {number} [kWh] - Utility: energy consumption in kWh.
- * @property {string} [billProvider] - Utility: energy provider name extracted from bill.
- * @property {string} [billPeriod] - Utility: billing period (e.g., "July 2025").
- * @property {number} [confidence] - Utility: Vision API extraction confidence (0–1).
+ * All fields are optional because only certain fields apply per category.
  */
-
-// ─────────────────────────────────────────────────────────────────────────────
-// COMMUTE INPUTS
-// ─────────────────────────────────────────────────────────────────────────────
+export interface EmissionMetadata {
+  /** [commute] Starting address or coordinate string. */
+  origin?: string;
+  /** [commute] Destination address or coordinate string. */
+  destination?: string;
+  /** [commute] Mode of transport used. */
+  travelMode?: TravelMode;
+  /** [commute] One-way trip distance in kilometres. */
+  distanceKm?: number;
+  /** [utility] Energy consumption in kWh. */
+  kWh?: number;
+  /** [utility] Energy provider name extracted from bill. */
+  billProvider?: string;
+  /** [utility] Billing period string, e.g. "July 2025". */
+  billPeriod?: string;
+  /** [utility] AI extraction confidence score (0–1). */
+  confidence?: ConfidenceScore;
+}
 
 /**
- * Valid Google Maps travel mode strings.
- *
- * @typedef {'DRIVING'|'TRANSIT'|'WALKING'|'BICYCLING'} TravelMode
+ * A single carbon emission record for one activity.
+ * Stored in Firestore at: `users/{uid}/emissions/{recordId}`
  */
-
-/**
- * Input payload for the commute carbon calculation endpoint.
- *
- * @typedef {object} CommuteInput
- * @property {string} origin - Starting address or lat/lng string.
- * @property {string} destination - Ending address or lat/lng string.
- * @property {TravelMode} travelMode - Mode of transportation.
- * @property {number} [trips=1] - Number of one-way trips (2 for round trip).
- */
-
-/**
- * Response payload from the commute calculation endpoint.
- *
- * @typedef {object} CommuteResult
- * @property {number} distanceKm - Calculated distance in kilometers.
- * @property {number} durationMinutes - Estimated travel time in minutes.
- * @property {number} kgCO2e - Carbon emissions in kg CO₂ equivalent.
- * @property {TravelMode} travelMode - The travel mode used for calculation.
- * @property {string} originAddress - Resolved origin address from Maps API.
- * @property {string} destinationAddress - Resolved destination address from Maps API.
- */
-
-// ─────────────────────────────────────────────────────────────────────────────
-// BILL SCANNING
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Result of scanning a utility bill image with Gemini Vision.
- *
- * @typedef {object} BillScanResult
- * @property {number|null} kWhExtracted - Energy consumption in kWh, or null if not found.
- * @property {number} kgCO2e - Calculated CO₂ emissions from the extracted kWh.
- * @property {string|null} billProvider - Energy provider name, or null if not found.
- * @property {string|null} billPeriod - Billing period string, or null if not found.
- * @property {number} confidence - Extraction confidence score (0–1).
- * @property {string} rawSummary - Raw summary text from Gemini Vision response.
- * @property {boolean} cached - Whether this result was served from cache.
- */
-
-// ─────────────────────────────────────────────────────────────────────────────
-// AI INSIGHTS
-// ─────────────────────────────────────────────────────────────────────────────
+export interface EmissionRecord {
+  /** Auto-generated Firestore document ID. */
+  id?: string;
+  /** Firebase UID of the record owner — always from the verified token. */
+  userId: string;
+  /** Activity category. */
+  category: EmissionCategory;
+  /** Carbon emissions in kg CO₂ equivalent. */
+  kgCO2e: number;
+  /** ISO 8601 date string (YYYY-MM-DD) for the emission event. */
+  date: string;
+  /** ISO 8601 creation timestamp. */
+  createdAt?: string;
+  /** Category-specific metadata. */
+  metadata?: EmissionMetadata;
+}
 
 /**
  * A personalized eco-insight generated by the Gemini AI model.
- * Stored in Firestore under `users/{uid}/insights/{insightId}`.
- *
- * @typedef {object} EcoInsight
- * @property {string} id - Auto-generated Firestore document ID.
- * @property {string} userId - The owning user's Firebase UID.
- * @property {string} prompt - The prompt sent to Gemini (for audit/debugging).
- * @property {string} responseText - The generated insight markdown text.
- * @property {EcoInsightTip[]} tips - Parsed actionable tips from the response.
- * @property {string} generatedAt - ISO 8601 timestamp when the insight was created.
- * @property {boolean} cached - Whether this insight was served from the response cache.
+ * Stored in Firestore at: `users/{uid}/insights/{insightId}`
  */
+export interface EcoInsight {
+  id: string;
+  userId: string;
+  /** The structured prompt sent to Gemini (for audit and debugging). */
+  prompt: string;
+  /** Raw markdown response text from Gemini. */
+  responseText: string;
+  /** Actionable tips parsed from the response. */
+  tips: EcoInsightTip[];
+  generatedAt: string;  // ISO 8601
+  /** True if this response was served from the in-memory cache. */
+  cached: boolean;
+}
 
 /**
- * A single actionable tip extracted from an EcoInsight.
- *
- * @typedef {object} EcoInsightTip
- * @property {string} title - Short title of the tip.
- * @property {string} description - Detailed description of the action.
- * @property {EmissionCategory} category - Which emission category this tip addresses.
- * @property {number} estimatedSavingKg - Estimated monthly CO₂e saving in kg if tip is followed.
- * @property {'easy'|'medium'|'hard'} difficulty - Implementation difficulty rating.
+ * A single actionable carbon-reduction tip from an EcoInsight.
  */
+export interface EcoInsightTip {
+  title: string;
+  description: string;
+  /** Which emission category this tip targets. */
+  category: EmissionCategory;
+  /** Estimated monthly CO₂e saving if tip is followed (kg). */
+  estimatedSavingKg: number;
+  difficulty: 'easy' | 'medium' | 'hard';
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
-// API REQUEST / RESPONSE ENVELOPES
+// 3. API REQUEST DTOs (validated at route layer by express-validator)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Standard success response envelope for all API endpoints.
- *
- * @typedef {object} ApiSuccessResponse
- * @property {true} success - Always true for success responses.
- * @property {*} data - The response payload.
- * @property {string} [message] - Optional human-readable message.
- * @property {number} [statusCode] - HTTP status code (defaults to 200).
+ * Input payload for POST /api/commute.
+ * All fields are validated by the route's express-validator chain.
  */
+export interface CommuteInput {
+  /** Starting address (max 500 characters). */
+  origin: string;
+  /** Ending address (max 500 characters). */
+  destination: string;
+  travelMode: TravelMode;
+  /** Number of one-way trips to calculate (default 1). */
+  trips?: number;
+  /** If true, persist the record to Firestore after calculation. */
+  saveRecord?: boolean;
+}
 
 /**
- * Standard error response envelope for all API endpoints.
- *
- * @typedef {object} ApiErrorResponse
- * @property {false} success - Always false for error responses.
- * @property {string} error - Error type identifier (e.g., "VALIDATION_ERROR").
- * @property {string} message - Human-readable error description.
- * @property {Array<{field: string, message: string}>} [details] - Field-level validation errors.
- * @property {number} statusCode - HTTP status code.
+ * Input payload for POST /api/scan (bill scanning).
+ * Image is Base64-encoded by the client before sending.
  */
+export interface BillScanInput {
+  /** Base64-encoded image data (no data-URI prefix). */
+  imageBase64: string;
+  /** MIME type of the original image. */
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
+}
 
 /**
- * Retry configuration for the withRetry utility.
- *
- * @typedef {object} RetryConfig
- * @property {number} [maxAttempts=3] - Maximum number of total attempts.
- * @property {number} [initialDelayMs=500] - Initial backoff delay in milliseconds.
- * @property {number} [backoffFactor=2] - Exponential backoff multiplier.
- * @property {number} [maxDelayMs=10000] - Maximum delay cap in milliseconds.
- * @property {Function} [shouldRetry] - Optional function(error) => boolean to customize retry logic.
+ * Input payload for POST /api/insights.
  */
+export interface InsightsInput {
+  /** User's total monthly carbon footprint (kg CO₂e). */
+  monthlyKgCO2e: number;
+  /** Commute portion of the monthly total (kg CO₂e). */
+  commuteKg?: number;
+  /** Utility portion of the monthly total (kg CO₂e). */
+  utilityKg?: number;
+  /** Primary travel mode for personalised commute tips. */
+  travelMode?: TravelMode | 'MIXED';
+}
 
-export {};
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. API RESPONSE SHAPES
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Response payload for POST /api/commute.
+ */
+export interface CommuteResult {
+  distanceKm: number;
+  durationMinutes: number;
+  kgCO2e: number;
+  travelMode: TravelMode;
+  /** Resolved display address from the Maps API. */
+  originAddress: string;
+  destinationAddress: string;
+  /** Firestore record ID if `saveRecord` was true. */
+  savedId?: string;
+  /** CO₂e from driving the same trip (for comparison banner). */
+  comparisonDriving?: number;
+}
+
+/**
+ * Response payload for POST /api/scan.
+ */
+export interface BillScanResult {
+  /** Energy consumption extracted from the bill (kWh), or null if not found. */
+  kWhExtracted: number | null;
+  /** Calculated CO₂ emissions from the extracted kWh. */
+  kgCO2e: number;
+  /** Energy provider name extracted by AI, or null if not found. */
+  billProvider: string | null;
+  /** Billing period extracted by AI (e.g., "July 2025"), or null. */
+  billPeriod: string | null;
+  /** AI extraction confidence (0–1). */
+  confidence: ConfidenceScore;
+  /** Raw summary text returned by Gemini Vision. */
+  rawSummary: string;
+  /** True if served from the response cache. */
+  cached: boolean;
+}
+
+/**
+ * Response payload for POST /api/insights.
+ */
+export interface InsightsResponse {
+  /** Gemini-generated markdown recommendation text. */
+  text: string;
+  /** True if served from the response cache. */
+  cached: boolean;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. CACHE INTERNALS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A generic, TTL-aware cache entry.
+ *
+ * @template T - The type of the cached value.
+ */
+export interface CacheEntry<T> {
+  /** The cached payload. */
+  value: T;
+  /** Unix timestamp (ms) when this entry expires. */
+  expiresAt: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. FIRESTORE QUERY HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A tuple representing a single Firestore `where()` filter clause.
+ * Used by BaseDB.queryCollection to build typed filter arrays.
+ *
+ * [fieldPath, operator, value]
+ */
+export type FirestoreFilter = [string, FirebaseFirestore.WhereFilterOp, string | number | boolean | null];
+
+/**
+ * Options for BaseDB.queryCollection queries.
+ */
+export interface QueryOptions {
+  orderBy?: string;
+  orderDirection?: 'asc' | 'desc';
+  limit?: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. RETRY CONFIGURATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Configuration for the withRetry exponential backoff utility.
+ * All fields are optional; defaults are applied by withRetry.
+ */
+export interface RetryConfig {
+  /** Total number of attempts (first call + retries). Default: 3. */
+  maxAttempts?: number;
+  /** Initial backoff delay in milliseconds. Default: 500. */
+  initialDelayMs?: number;
+  /** Exponential multiplier applied after each failure. Default: 2. */
+  backoffFactor?: number;
+  /** Maximum delay cap in milliseconds. Default: 10 000. */
+  maxDelayMs?: number;
+  /**
+   * Predicate to determine whether an error is worth retrying.
+   * Receives the unknown thrown value. Default: retries on network/5xx errors.
+   */
+  shouldRetry?: (error: unknown) => boolean;
+}

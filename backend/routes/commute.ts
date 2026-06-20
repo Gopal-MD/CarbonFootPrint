@@ -11,6 +11,7 @@ import { getMapsService } from '../services/MapsService.js';
 import { BaseDB } from '../services/BaseDB.js';
 import { requireAuth, AuthenticatedRequest } from '../middleware/authMiddleware.js';
 import { sendSuccess, sendError, sendValidationError } from '../utils/apiResponse.js';
+import type { EmissionRecord } from '../../shared/types/index.js';
 import logger from '../utils/logger.js';
 
 export const commuteRouter = Router();
@@ -24,8 +25,8 @@ class CommuteEmissionsDB extends BaseDB {
    * @param record - Emission record data.
    * @returns Document ID on success.
    */
-  async save(userId: string, record: any): Promise<{ id: string }> {
-    return this.addDoc(`users/${userId}/emissions`, { ...record, userId, category: 'commute' });
+  async save(userId: string, record: Omit<EmissionRecord, 'id' | 'userId'>): Promise<{ id: string }> {
+    return this.addDoc<EmissionRecord>(`users/${userId}/emissions`, { ...record, userId, category: 'commute' } as EmissionRecord);
   }
 }
 
@@ -64,7 +65,7 @@ const validateCommuteInput = [
 ];
 
 // ── POST /api/commute ─────────────────────────────────────────────────────────
-commuteRouter.post('/', requireAuth, validateCommuteInput, async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<any> => {
+commuteRouter.post('/', requireAuth, validateCommuteInput, async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void | Response> => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -99,6 +100,7 @@ commuteRouter.post('/', requireAuth, validateCommuteInput, async (req: Authentic
     let savedId: string | null = null;
     if (saveRecord) {
       const saved = await commuteDB.save(userId, {
+        category: 'commute',
         kgCO2e: result.kgCO2e,
         date: new Date().toISOString().split('T')[0],
         metadata: {
@@ -106,7 +108,6 @@ commuteRouter.post('/', requireAuth, validateCommuteInput, async (req: Authentic
           destination: result.destinationAddress,
           travelMode: result.travelMode,
           distanceKm: result.distanceKm,
-          trips,
         },
       });
       savedId = saved.id;
@@ -118,12 +119,13 @@ commuteRouter.post('/', requireAuth, validateCommuteInput, async (req: Authentic
       trips,
       ...(savedId && { savedId }),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Provide user-friendly messages for common Maps API errors
-    if (error && error.message && error.message.includes('No route found')) {
-      return sendError(res, 'NO_ROUTE_FOUND', error.message, 404);
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('No route found')) {
+      return sendError(res, 'NO_ROUTE_FOUND', message, 404);
     }
-    if (error && error.message && (error.message.includes('OVER_DAILY_LIMIT') || error.message.includes('OVER_QUERY_LIMIT'))) {
+    if (message.includes('OVER_DAILY_LIMIT') || message.includes('OVER_QUERY_LIMIT')) {
       return sendError(res, 'MAPS_QUOTA_EXCEEDED', 'Maps API quota exceeded. Please try again tomorrow.', 429);
     }
     next(error);
