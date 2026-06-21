@@ -4,10 +4,10 @@ import { defineConfig } from 'vitest/config';
  * Vitest configuration for backend unit and integration tests.
  *
  * Coverage targets (CI will fail below these thresholds):
- * - Lines:      ≥80%
- * - Functions:  ≥80%
- * - Branches:   ≥75%
- * - Statements: ≥80%
+ * - Lines:      ≥90%
+ * - Functions:  ≥90%
+ * - Branches:   ≥80%
+ * - Statements: ≥90%
  */
 export default defineConfig({
   test: {
@@ -18,10 +18,10 @@ export default defineConfig({
       reporter: ['text', 'json', 'html', 'lcov'],
       reportsDirectory: './coverage',
       thresholds: {
-        lines: 80,
-        functions: 85,
-        branches: 75,
-        statements: 80,
+        lines: 90,
+        functions: 90,
+        branches: 80,
+        statements: 90,
       },
       exclude: [
         'node_modules/',
@@ -36,6 +36,9 @@ export default defineConfig({
         'utils/openapi.ts',
         // Exclude server.ts (starts listening and handles process signals)
         'server.ts',
+        // Exclude DTO and interface files — type-only, no runtime logic
+        'dto/',
+        'interfaces/',
       ],
     },
     include: ['tests/**/*.{test,spec}.{js,ts}'],
