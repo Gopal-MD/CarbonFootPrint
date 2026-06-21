@@ -34,11 +34,15 @@ import logger from './utils/logger.js';
 import router from './routes/index.js';
 import { optionalAuth, AuthenticatedRequest } from './middleware/authMiddleware.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { getEmissionsRepository } from './repositories/index.js';
+import { getConfig } from './config.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Express Application Setup
 // ─────────────────────────────────────────────────────────────────────────────
 const app = express();
+app.locals.emissionsRepo = getEmissionsRepository();
+app.locals.config = getConfig();
 const PORT = parseInt(getEnv('PORT', '8080'), 10);
 
 // ── Security: Helmet (secure HTTP headers) ────────────────────────────────────

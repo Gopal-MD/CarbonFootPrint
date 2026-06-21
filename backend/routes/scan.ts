@@ -18,7 +18,7 @@ import { body, validationResult } from 'express-validator';
 import { requireAuth, AuthenticatedRequest } from '../middleware/authMiddleware.js';
 import { getAIServiceManager } from '../services/AIServiceManager.js';
 import { sendSuccess, sendError, sendValidationError } from '../utils/apiResponse.js';
-import { ELECTRICITY_KG_PER_KWH } from '../constants/index.js';
+import { calculateElectricityEmissions } from '../domain/calculator.js';
 import logger from '../utils/logger.js';
 
 export const scanRouter = Router();
@@ -166,7 +166,7 @@ scanRouter.post(
 
         // Calculate CO₂e from extracted kWh using the scientifically cited factor
         const kgCO2e = scanResult.kWhExtracted
-          ? Math.round(scanResult.kWhExtracted * ELECTRICITY_KG_PER_KWH * 10000) / 10000
+          ? calculateElectricityEmissions(scanResult.kWhExtracted)
           : 0;
 
         logger.info(`[ScanRoute] Vision extraction complete: kWh=${scanResult.kWhExtracted}, confidence=${scanResult.confidence}`);

@@ -9,50 +9,12 @@
 import { Router, Response, NextFunction } from 'express';
 import { body, query, validationResult } from 'express-validator';
 import { requireAuth, AuthenticatedRequest } from '../middleware/authMiddleware.js';
-import { BaseDB } from '../services/BaseDB.js';
 import { sendSuccess, sendError, sendValidationError } from '../utils/apiResponse.js';
-import type { EmissionRecord } from '../../shared/types/index.js';
-import type { FirestoreFilter } from '../types/eco_types.js';
+import type { EmissionCategory } from '../types/eco_types.js';
+import { getEmissionsRepository, IEmissionRepository } from '../repositories/index.js';
 import logger from '../utils/logger.js';
 
 export const emissionsRouter = Router();
-
-// ── Domain-specific DB subclass ───────────────────────────────────────────────
-class EmissionsDB extends BaseDB {
-  /**
-   * Adds a new emission record for a user.
-   *
-   * @param userId - Firebase UID (from verified token).
-   * @param record - Emission data.
-   * @returns Document ID on success.
-   */
-  async addRecord(userId: string, record: Omit<EmissionRecord, 'id'>): Promise<{ id: string }> {
-    return this.addDoc<EmissionRecord>(`users/${userId}/emissions`, record);
-  }
-
-  /**
-   * Retrieves paginated emission records for a user.
-   *
-   * @param userId - Firebase UID (from verified token).
-   * @param options - Query options.
-   * @param options.category
-   * @param options.limit
-   * @returns List of emission records.
-   */
-  async getRecords(userId: string, options: { category?: string; limit?: number } = {}): Promise<EmissionRecord[]> {
-    const filters: FirestoreFilter[] = [];
-    if (options.category) {
-      filters.push(['category', '==', options.category]);
-    }
-    return this.queryCollection<EmissionRecord>(`users/${userId}/emissions`, filters, {
-      orderBy: 'createdAt',
-      orderDirection: 'desc',
-      limit: options.limit ?? 20,
-    });
-  }
-}
-
-const emissionsDB = new EmissionsDB();
 
 /**
  * POST /api/emissions
@@ -137,7 +99,8 @@ emissionsRouter.post(
       const { category, kgCO2e, date, metadata = {} } = req.body;
       logger.info(`[EmissionsRoute] Adding ${category} record for user ${userId.substring(0, 8)}`);
 
-      const result = await emissionsDB.addRecord(userId, { userId, category, kgCO2e, date, metadata });
+      const repo = (req.app.locals.emissionsRepo as IEmissionRepository) || getEmissionsRepository();
+      const result = await repo.add(userId, { userId, category, kgCO2e, date, metadata });
 
       return sendSuccess(res, { id: result.id }, { statusCode: 201, message: 'Emission record saved successfully' });
     } catch (error) {
@@ -229,8 +192,10 @@ emissionsRouter.get(
 
       const category = req.query.category as string | undefined;
       const limit = req.query.limit as string | undefined;
-      const records = await emissionsDB.getRecords(userId, {
-        category,
+
+      const repo = (req.app.locals.emissionsRepo as IEmissionRepository) || getEmissionsRepository();
+      const records = await repo.getRecords(userId, {
+        category: category as EmissionCategory | undefined,
         limit: limit ? parseInt(limit, 10) : 20,
       });
 

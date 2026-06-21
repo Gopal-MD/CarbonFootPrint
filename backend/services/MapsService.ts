@@ -15,21 +15,13 @@ import { withRetry } from '../utils/withRetry.js';
 import { createModuleLogger } from '../utils/logger.js';
 import { isStubEnabled } from '../utils/validateEnv.js';
 import { TravelMode, CommuteInput, CommuteResult } from '../../shared/types/index.js';
+import { calculateCommuteEmissions } from '../domain/calculator.js';
 
 const logger = createModuleLogger('MapsService');
 
 const MAPS_DIRECTIONS_BASE_URL = 'https://maps.googleapis.com/maps/api/directions/json';
 
-/**
- * Emission factors in kg CO₂e per passenger-km.
- * Sources: UK DEFRA 2023 Greenhouse Gas Reporting.
- */
-const EMISSION_FACTORS_KG_PER_KM: Record<TravelMode, number> = {
-  DRIVING: 0.17046,   // Average petrol car
-  TRANSIT: 0.03549,   // UK rail average
-  WALKING: 0.0,
-  BICYCLING: 0.0,
-};
+
 
 /**
  * Maps Google Maps travel mode strings to Directions API mode parameter values.
@@ -182,8 +174,7 @@ export class MapsService {
     );
 
     const modeKey = travelMode.toUpperCase() as TravelMode;
-    const factor = EMISSION_FACTORS_KG_PER_KM[modeKey] ?? 0;
-    const kgCO2e = Math.round(directions.distanceKm * trips * factor * 10000) / 10000;
+    const kgCO2e = calculateCommuteEmissions(directions.distanceKm, modeKey, trips);
 
     logger.info(
       `[MapsService] Route computed: ${directions.distanceKm.toFixed(1)} km, ` +
@@ -211,11 +202,10 @@ export class MapsService {
     logger.info('[MapsService] Returning stub result (MAPS_STUB=true)');
     const distanceKm = 12.5;
     const modeKey = travelMode.toUpperCase() as TravelMode;
-    const factor = EMISSION_FACTORS_KG_PER_KM[modeKey] ?? 0;
     return {
       distanceKm,
       durationMinutes: 22,
-      kgCO2e: Math.round(distanceKm * trips * factor * 10000) / 10000,
+      kgCO2e: calculateCommuteEmissions(distanceKm, modeKey, trips),
       travelMode: modeKey,
       originAddress: origin,
       destinationAddress: destination,

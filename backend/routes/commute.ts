@@ -7,30 +7,13 @@
 
 import { Router, Response, NextFunction } from 'express';
 import { body, validationResult } from 'express-validator';
-import { getMapsService } from '../services/MapsService.js';
-import { BaseDB } from '../services/BaseDB.js';
 import { requireAuth, AuthenticatedRequest } from '../middleware/authMiddleware.js';
+import { getMapsService } from '../services/MapsService.js';
 import { sendSuccess, sendError, sendValidationError } from '../utils/apiResponse.js';
-import type { EmissionRecord } from '../../shared/types/index.js';
+import { getEmissionsRepository, IEmissionRepository } from '../repositories/index.js';
 import logger from '../utils/logger.js';
 
 export const commuteRouter = Router();
-
-// ── Emissions DB subclass ─────────────────────────────────────────────────────
-class CommuteEmissionsDB extends BaseDB {
-  /**
-   * Saves a commute emission record to Firestore.
-   *
-   * @param userId - Firebase UID (derived from verified token).
-   * @param record - Emission record data.
-   * @returns Document ID on success.
-   */
-  async save(userId: string, record: Omit<EmissionRecord, 'id' | 'userId'>): Promise<{ id: string }> {
-    return this.addDoc<EmissionRecord>(`users/${userId}/emissions`, { ...record, userId, category: 'commute' });
-  }
-}
-
-const commuteDB = new CommuteEmissionsDB();
 
 // ── Validation middleware ─────────────────────────────────────────────────────
 const validateCommuteInput = [
@@ -160,7 +143,9 @@ commuteRouter.post('/', requireAuth, validateCommuteInput, async (req: Authentic
     // Optionally persist to Firestore
     let savedId: string | null = null;
     if (saveRecord) {
-      const saved = await commuteDB.save(userId, {
+      const repo = (req.app.locals.emissionsRepo as IEmissionRepository) || getEmissionsRepository();
+      const saved = await repo.add(userId, {
+        userId,
         category: 'commute',
         kgCO2e: result.kgCO2e,
         date: new Date().toISOString().split('T')[0],

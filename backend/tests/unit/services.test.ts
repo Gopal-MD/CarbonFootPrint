@@ -433,7 +433,7 @@ describe('MapsService — live mode', () => {
 
     expect(result.distanceKm).toBe(15);
     expect(result.durationMinutes).toBe(15);
-    expect(result.kgCO2e).toBeCloseTo(15 * 2 * 0.17046, 4);
+    expect(result.kgCO2e).toBeCloseTo(15 * 2 * 0.12, 4);
     expect(result.travelMode).toBe('DRIVING');
     expect(result.originAddress).toBe('Start St');
     expect(result.destinationAddress).toBe('End St');
