@@ -441,7 +441,7 @@ describe('POST /api/emissions — input validation', () => {
         category: 'food',
         kgCO2e: 2.4,
         date: '2026-06-20',
-        metadata: { description: 'Beef burger meal' },
+        metadata: { origin: 'Beef burger meal' },
       });
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);

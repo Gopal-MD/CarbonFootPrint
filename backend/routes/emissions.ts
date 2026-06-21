@@ -58,7 +58,7 @@ export const emissionsRouter = Router();
  *   "category": "food",
  *   "kgCO2e": 2.4,
  *   "date": "2026-06-20",
- *   "metadata": { "description": "Beef burger meal" }
+ *   "metadata": { "origin": "Beef burger meal" }
  * }
  *
  * // Success (201)

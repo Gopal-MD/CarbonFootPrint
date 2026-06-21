@@ -30,7 +30,7 @@ describe('InMemoryEmissionRepository', () => {
       category: 'food',
       kgCO2e: 4.5,
       date: '2026-06-21',
-      metadata: { description: 'lunch' }
+      metadata: { origin: 'lunch' }
     });
 
     expect(addResult).toHaveProperty('id');
