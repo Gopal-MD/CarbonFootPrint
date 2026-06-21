@@ -60,7 +60,7 @@ jobs:
         run: npm run test --workspace=frontend -- --coverage
       
       - name: Upload coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           files: ./backend/coverage/coverage-final.json,./frontend/coverage/coverage-final.json
           flags: unittests
