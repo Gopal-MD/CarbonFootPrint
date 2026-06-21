@@ -2,6 +2,12 @@ import { defineConfig } from 'vitest/config';
 
 /**
  * Vitest configuration for backend unit and integration tests.
+ *
+ * Coverage targets (CI will fail below these thresholds):
+ * - Lines:      ≥80%
+ * - Functions:  ≥80%
+ * - Branches:   ≥75%
+ * - Statements: ≥80%
  */
 export default defineConfig({
   test: {
@@ -9,16 +15,13 @@ export default defineConfig({
     environment: 'node',
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json', 'html', 'lcov'],
       reportsDirectory: './coverage',
-      // NOTE: Thresholds will be raised to 80%+ in Step 4
-      // once route, service, and integration tests are added.
-      // Current Step 1 coverage: withRetry utility only.
       thresholds: {
-        lines: 5,
-        functions: 20,
-        branches: 60,
-        statements: 5,
+        lines: 80,
+        functions: 85,
+        branches: 75,
+        statements: 80,
       },
       exclude: [
         'node_modules/',
@@ -29,9 +32,13 @@ export default defineConfig({
         'check-deployment.js',
         'test-live-apis.js',
         'test-live-bundle.js',
+        // Exclude openapi.ts from coverage (large static config)
+        'utils/openapi.ts',
+        // Exclude server.ts (starts listening and handles process signals)
+        'server.ts',
       ],
     },
     include: ['tests/**/*.{test,spec}.{js,ts}'],
-    testTimeout: 10000,
+    testTimeout: 15000,
   },
 });

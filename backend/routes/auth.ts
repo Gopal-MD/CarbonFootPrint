@@ -112,7 +112,7 @@ authRouter.post(
     } catch (error: unknown) {
       // Firebase auth errors have specific codes
       const firebaseCode = (error && typeof error === 'object' && 'code' in error)
-        ? String((error as { code: unknown }).code)
+        ? String((error).code)
         : null;
       if (firebaseCode === 'auth/id-token-expired') {
         return res.status(401).json({

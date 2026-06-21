@@ -27,7 +27,7 @@ class EmissionsDB extends BaseDB {
    * @returns Document ID on success.
    */
   async addRecord(userId: string, record: Omit<EmissionRecord, 'id'>): Promise<{ id: string }> {
-    return this.addDoc<EmissionRecord>(`users/${userId}/emissions`, record as EmissionRecord);
+    return this.addDoc<EmissionRecord>(`users/${userId}/emissions`, record);
   }
 
   /**
@@ -35,6 +35,8 @@ class EmissionsDB extends BaseDB {
    *
    * @param userId - Firebase UID (from verified token).
    * @param options - Query options.
+   * @param options.category
+   * @param options.limit
    * @returns List of emission records.
    */
   async getRecords(userId: string, options: { category?: string; limit?: number } = {}): Promise<EmissionRecord[]> {
@@ -218,9 +220,10 @@ emissionsRouter.get(
       }
       const userId = req.user.uid;
 
+      const queryUserId = typeof req.query.userId === 'string' ? req.query.userId : undefined;
       // Guard against cross-user access: if client sends userId, it must match token
-      if (req.query.userId && req.query.userId !== userId) {
-        logger.warn(`[EmissionsRoute] Cross-user access attempt: token=${userId.substring(0, 8)} query=${String(req.query.userId).substring(0, 8)}`);
+      if (queryUserId && queryUserId !== userId) {
+        logger.warn(`[EmissionsRoute] Cross-user access attempt: token=${userId.substring(0, 8)} query=${queryUserId.substring(0, 8)}`);
         return sendError(res, 'FORBIDDEN', 'You are not authorized to access another user\'s records.', 403);
       }
 

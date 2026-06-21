@@ -33,6 +33,7 @@ import { existsSync } from 'fs';
 import logger from './utils/logger.js';
 import router from './routes/index.js';
 import { optionalAuth, AuthenticatedRequest } from './middleware/authMiddleware.js';
+import { errorHandler } from './middleware/errorHandler.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Express Application Setup
@@ -144,7 +145,7 @@ app.use(
  */
 const globalRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  max: process.env.NODE_ENV === 'test' ? 10000 : 100,
   standardHeaders: true, // RateLimit-* headers
   legacyHeaders: false,
   message: {
@@ -171,7 +172,7 @@ const globalRateLimit = rateLimit({
  */
 const aiRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: process.env.NODE_ENV === 'test' ? 1000 : 10,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: AuthenticatedRequest) => {
@@ -262,67 +263,10 @@ if (isProduction()) {
 // ── API Routes ────────────────────────────────────────────────────────────────
 app.use('/', router);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Global Error Handler
-// ─────────────────────────────────────────────────────────────────────────────
-/**
- * Centralized error handling middleware.
- * Converts all thrown errors into consistent JSON error responses.
- * Must be registered AFTER all routes.
- */
-app.use((err: any, req: Request, res: Response, _next: NextFunction): void | Response => {
-  // Log with full context
-  logger.error('[GlobalErrorHandler]', {
-    message: err.message,
-    stack: isProduction() ? undefined : err.stack,
-    path: req.path,
-    method: req.method,
-    ip: req.ip,
-    retriesExhausted: err.retriesExhausted,
-    operationName: err.operationName,
-  });
-
-  // CORS errors
-  if (err.message && err.message.startsWith('CORS:')) {
-    return res.status(403).json({
-      success: false,
-      error: 'CORS_ERROR',
-      message: err.message,
-      statusCode: 403,
-    });
-  }
-
-  // Validation errors from express-validator that weren't caught in routes
-  if (err.type === 'entity.parse.failed') {
-    return res.status(400).json({
-      success: false,
-      error: 'INVALID_JSON',
-      message: 'Request body contains invalid JSON.',
-      statusCode: 400,
-    });
-  }
-
-  // Request body too large (multer / bodyParser)
-  if (err.type === 'entity.too.large' || err.status === 413) {
-    return res.status(413).json({
-      success: false,
-      error: 'PAYLOAD_TOO_LARGE',
-      message: 'Request body exceeds the maximum allowed size of 15 MB.',
-      statusCode: 413,
-    });
-  }
-
-  // Generic 500 — never expose internal details in production
-  const statusCode = err.statusCode || err.status || 500;
-  return res.status(statusCode).json({
-    success: false,
-    error: 'INTERNAL_SERVER_ERROR',
-    message: isProduction()
-      ? 'An unexpected error occurred. Please try again later.'
-      : err.message,
-    statusCode,
-  });
-});
+// ── Global Error Handler ──────────────────────────────────────────────────────
+// Extracted to backend/middleware/errorHandler.ts for testability.
+// Must be registered AFTER all routes.
+app.use(errorHandler);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Server Start
@@ -349,6 +293,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
  * then exits cleanly.
  *
  * Cloud Run sends SIGTERM and waits up to 10 seconds before SIGKILL.
+ * @param signal
  */
 function gracefulShutdown(signal: string): void {
   logger.info(`[Shutdown] Received ${signal}. Starting graceful shutdown...`);

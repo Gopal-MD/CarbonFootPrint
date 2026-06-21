@@ -80,8 +80,8 @@ function getDb(): Firestore {
  * @returns Human-readable error message string.
  */
 function toErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
+  if (error instanceof Error) {return error.message;}
+  if (typeof error === 'string') {return error;}
   return JSON.stringify(error);
 }
 
@@ -92,6 +92,9 @@ function toErrorMessage(error: unknown): string {
  * Extend this class in domain-specific service classes.
  */
 export class BaseDB {
+  /**
+   *
+   */
   constructor() {
     if (new.target === BaseDB) {
       throw new Error('BaseDB is abstract. Extend it instead of instantiating directly.');

@@ -1,0 +1,36 @@
+version: 2
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '00:00'
+    open-pull-requests-limit: 5
+    reviewers:
+      - 'mdgopal2002'
+    labels:
+      - 'dependencies'
+      - 'npm'
+
+  - package-ecosystem: 'docker'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    reviewers:
+      - 'mdgopal2002'
+    labels:
+      - 'dependencies'
+      - 'docker'
+
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    reviewers:
+      - 'mdgopal2002'
+    labels:
+      - 'dependencies'
+      - 'github-actions'

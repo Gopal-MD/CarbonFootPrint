@@ -202,6 +202,10 @@ export class MapsService {
 
   /**
    * Returns a deterministic stub result for testing without a billing-enabled project.
+   * @param origin
+   * @param destination
+   * @param travelMode
+   * @param trips
    */
   private _stubResult(origin: string, destination: string, travelMode: TravelMode, trips: number): CommuteResult {
     logger.info('[MapsService] Returning stub result (MAPS_STUB=true)');

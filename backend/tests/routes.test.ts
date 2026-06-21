@@ -24,34 +24,75 @@ vi.mock('firebase-admin/app', () => ({
   cert: vi.fn(() => ({})),
 }));
 
+const mockVerifyIdToken = vi.fn().mockResolvedValue({
+  uid: 'test-uid-123',
+  email: 'test@example.com',
+  name: 'Test User',
+  email_verified: true,
+});
+
 vi.mock('firebase-admin/auth', () => ({
   getAuth: vi.fn(() => ({
-    verifyIdToken: vi.fn().mockResolvedValue({
-      uid: 'test-uid-123',
-      email: 'test@example.com',
-      name: 'Test User',
-      email_verified: true,
-    }),
+    verifyIdToken: mockVerifyIdToken,
   })),
 }));
 
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: vi.fn(() => ({
-    collection: vi.fn(() => ({
-      add: vi.fn().mockResolvedValue({ id: 'mock-doc-id' }),
-      doc: vi.fn(() => ({
-        get: vi.fn().mockResolvedValue({ exists: false }),
-        set: vi.fn().mockResolvedValue({}),
-      })),
+vi.mock('firebase-admin/firestore', () => {
+  const queryMock = {
+    where: vi.fn().mockReturnThis(),
+    orderBy: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
+    get: vi.fn().mockResolvedValue({
+      docs: [
+        {
+          id: 'mock-emission-123',
+          data: () => ({
+            userId: 'test-uid-123',
+            category: 'commute',
+            kgCO2e: 4.82,
+            date: '2026-06-20',
+          }),
+        },
+      ],
+    }),
+  };
+
+  const collectionMock = {
+    add: vi.fn().mockResolvedValue({ id: 'mock-doc-id' }),
+    doc: vi.fn(() => ({
+      get: vi.fn().mockResolvedValue({ exists: false }),
+      set: vi.fn().mockResolvedValue({}),
     })),
-  })),
-  FieldValue: {
-    serverTimestamp: vi.fn(() => new Date()),
-  },
-  Timestamp: {
-    fromDate: vi.fn((d: any) => d),
-  },
-}));
+    where: vi.fn().mockReturnValue(queryMock),
+    orderBy: vi.fn().mockReturnValue(queryMock),
+    limit: vi.fn().mockReturnValue(queryMock),
+    get: vi.fn().mockResolvedValue({
+      docs: [
+        {
+          id: 'mock-emission-123',
+          data: () => ({
+            userId: 'test-uid-123',
+            category: 'commute',
+            kgCO2e: 4.82,
+            date: '2026-06-20',
+          }),
+        },
+      ],
+    }),
+  };
+
+  return {
+    getFirestore: vi.fn(() => ({
+      collection: vi.fn(() => collectionMock),
+    })),
+    FieldValue: {
+      serverTimestamp: vi.fn(() => new Date()),
+    },
+    Timestamp: {
+      fromDate: vi.fn((d: any) => d),
+    },
+  };
+});
 
 // ── Set env vars before importing server ──────────────────────────────────────
 process.env.NODE_ENV                      = 'test';
@@ -390,6 +431,219 @@ describe('POST /api/emissions — input validation', () => {
       .send({ category: 'commute', kgCO2e: -10, date: '2025-01-01' });
 
     expect(res.status).toBe(422);
+  });
+
+  it('accepts valid manual emission record', async () => {
+    const res = await request(app)
+      .post('/api/emissions')
+      .set('Authorization', 'Bearer mock-valid-token')
+      .send({
+        category: 'food',
+        kgCO2e: 2.4,
+        date: '2026-06-20',
+        metadata: { description: 'Beef burger meal' },
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toHaveProperty('id', 'mock-doc-id');
+  });
+});
+
+// ── /api/auth/verify ─────────────────────────────────────────────────────────
+describe('POST /api/auth/verify', () => {
+  it('returns 422 when idToken is missing', async () => {
+    const res = await request(app)
+      .post('/api/auth/verify')
+      .send({});
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe('VALIDATION_ERROR');
+  });
+
+  it('returns 422 when idToken is too short', async () => {
+    const res = await request(app)
+      .post('/api/auth/verify')
+      .send({ idToken: 'short' });
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe('VALIDATION_ERROR');
+  });
+
+  it('returns 200 on successful token verification', async () => {
+    const res = await request(app)
+      .post('/api/auth/verify')
+      .send({ idToken: 'a'.repeat(100) });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toEqual({
+      uid: 'test-uid-123',
+      email: 'test@example.com',
+      emailVerified: true,
+      displayName: 'Test User',
+    });
+  });
+
+  it('returns 401 when token is expired', async () => {
+    mockVerifyIdToken.mockRejectedValueOnce({ code: 'auth/id-token-expired' });
+
+    const res = await request(app)
+      .post('/api/auth/verify')
+      .send({ idToken: 'a'.repeat(100) });
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('TOKEN_EXPIRED');
+  });
+
+  it('returns 401 when token is revoked', async () => {
+    mockVerifyIdToken.mockRejectedValueOnce({ code: 'auth/id-token-revoked' });
+
+    const res = await request(app)
+      .post('/api/auth/verify')
+      .send({ idToken: 'a'.repeat(100) });
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('TOKEN_REVOKED');
+  });
+
+  it('passes generic errors to next()', async () => {
+    mockVerifyIdToken.mockRejectedValueOnce(new Error('something else'));
+
+    const res = await request(app)
+      .post('/api/auth/verify')
+      .send({ idToken: 'a'.repeat(100) });
+    expect(res.status).toBe(500);
+  });
+});
+
+// ── Additional Commute Paths ──────────────────────────────────────────────────
+describe('Additional Commute Paths', () => {
+  it('accepts valid commute request with saveRecord=true', async () => {
+    const res = await request(app)
+      .post('/api/commute')
+      .set('Authorization', 'Bearer mock-valid-token')
+      .send({
+        origin: '123 Main St, NY',
+        destination: '456 Oak Ave, NY',
+        travelMode: 'DRIVING',
+        trips: 2,
+        saveRecord: true,
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toHaveProperty('savedId');
+  });
+
+  it('returns 404 when MapsService throws No route found', async () => {
+    const { getMapsService } = await import('../services/MapsService.js');
+    const mapsService = getMapsService();
+    const original = mapsService.calculateCommuteEmissions;
+    mapsService.calculateCommuteEmissions = vi.fn().mockRejectedValue(new Error('No route found between A and B'));
+
+    const res = await request(app)
+      .post('/api/commute')
+      .set('Authorization', 'Bearer mock-valid-token')
+      .send({
+        origin: 'A',
+        destination: 'B',
+        travelMode: 'DRIVING',
+      });
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('NO_ROUTE_FOUND');
+
+    mapsService.calculateCommuteEmissions = original;
+  });
+
+  it('returns 429 when MapsService throws OVER_QUERY_LIMIT', async () => {
+    const { getMapsService } = await import('../services/MapsService.js');
+    const mapsService = getMapsService();
+    const original = mapsService.calculateCommuteEmissions;
+    mapsService.calculateCommuteEmissions = vi.fn().mockRejectedValue(new Error('OVER_QUERY_LIMIT'));
+
+    const res = await request(app)
+      .post('/api/commute')
+      .set('Authorization', 'Bearer mock-valid-token')
+      .send({
+        origin: 'A',
+        destination: 'B',
+        travelMode: 'DRIVING',
+      });
+    expect(res.status).toBe(429);
+    expect(res.body.error).toBe('MAPS_QUOTA_EXCEEDED');
+
+    mapsService.calculateCommuteEmissions = original;
+  });
+});
+
+// ── Additional Insights Fallback Paths ─────────────────────────────────────────
+describe('Additional Insights Fallback Paths', () => {
+  it('falls back to rules engine when AIServiceManager throws an error', async () => {
+    const { getAIServiceManager } = await import('../services/AIServiceManager.js');
+    const aiManager = getAIServiceManager();
+    const original = aiManager.generateInsight;
+    aiManager.generateInsight = vi.fn().mockRejectedValue(new Error('Gemini quota exceeded'));
+
+    const res = await request(app)
+      .post('/api/insights')
+      .set('Authorization', 'Bearer mock-valid-token')
+      .send({
+        monthlyKgCO2e: 142.5,
+        commuteKg: 48.3,
+        utilityKg: 78.2,
+        travelMode: 'DRIVING',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.source).toBe('rules');
+    expect(res.body.data.insightText).toContain('Eco-Reduction Plan');
+
+    aiManager.generateInsight = original;
+  });
+
+  it('generates correct rules fallback when travelMode is TRANSIT and utility is 0', async () => {
+    const { getAIServiceManager } = await import('../services/AIServiceManager.js');
+    const aiManager = getAIServiceManager();
+    const original = aiManager.generateInsight;
+    aiManager.generateInsight = vi.fn().mockRejectedValue(new Error('Gemini offline'));
+
+    const res = await request(app)
+      .post('/api/insights')
+      .set('Authorization', 'Bearer mock-valid-token')
+      .send({
+        monthlyKgCO2e: 50,
+        commuteKg: 10,
+        utilityKg: 0,
+        travelMode: 'TRANSIT',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.source).toBe('rules');
+    expect(res.body.data.insightText).toContain('Great commute choice');
+
+    aiManager.generateInsight = original;
+  });
+});
+
+// ── Additional Scan Fallback Paths ─────────────────────────────────────────────
+describe('Additional Scan Fallback Paths', () => {
+  it('falls back to manual entry when AIServiceManager.analyzeImageBase64 throws an error', async () => {
+    const { getAIServiceManager } = await import('../services/AIServiceManager.js');
+    const aiManager = getAIServiceManager();
+    const original = aiManager.analyzeImageBase64;
+    aiManager.analyzeImageBase64 = vi.fn().mockRejectedValue(new Error('Vision offline'));
+
+    const res = await request(app)
+      .post('/api/scan')
+      .set('Authorization', 'Bearer mock-valid-token')
+      .send({
+        imageBase64: 'dGVzdA==',
+        mimeType: 'image/jpeg',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.source).toBe('fallback');
+    expect(res.body.data.kWhExtracted).toBeNull();
+    expect(res.body.data.fallbackMessage).toContain('Automatic bill extraction is temporarily unavailable');
+
+    aiManager.analyzeImageBase64 = original;
   });
 });
 

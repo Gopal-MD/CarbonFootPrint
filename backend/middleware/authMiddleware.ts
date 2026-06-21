@@ -48,11 +48,14 @@ function getAdminAuth(): Auth {
  * Express middleware that enforces Firebase Authentication.
  * Extracts and verifies the Bearer token from the Authorization header.
  * Attaches decoded token to `req.user` on success.
+ * @param req
+ * @param res
+ * @param next
  */
 export async function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void | Response> {
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!authHeader?.startsWith('Bearer ')) {
     return res.status(401).json({
       success: false,
       error: 'UNAUTHORIZED',
@@ -78,7 +81,7 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
     return next();
   } catch (error: unknown) {
     const firebaseCode = (error && typeof error === 'object' && 'code' in error)
-      ? String((error as { code: unknown }).code)
+      ? String((error).code)
       : null;
     const firebaseMsg = error instanceof Error ? error.message : String(error);
     logger.warn(`[AuthMiddleware] Token verification failed: ${firebaseCode ?? firebaseMsg}`);
@@ -114,11 +117,14 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
  * Optional authentication middleware — attaches `req.user` if token present,
  * but does NOT block the request if no token is provided.
  * Useful for endpoints that serve both authenticated and anonymous users.
+ * @param req
+ * @param res
+ * @param next
  */
 export async function optionalAuth(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!authHeader?.startsWith('Bearer ')) {
     req.user = null;
     return next();
   }

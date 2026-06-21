@@ -64,7 +64,7 @@ function getFromCache<T>(key: string): T | null {
   }
   // LRU: move to end by re-inserting
   responseCache.delete(key);
-  responseCache.set(key, entry as CacheEntry<unknown>);
+  responseCache.set(key, entry);
   return entry.value;
 }
 
@@ -221,7 +221,7 @@ class AIServiceManager {
         const result = await this._model.generateContent(sanitizedPrompt);
         const response = result.response;
 
-        if (!response || !response.text) {
+        if (!response?.text) {
           throw new Error('Gemini returned an empty response.');
         }
 
@@ -255,7 +255,7 @@ class AIServiceManager {
     const cached = getFromCache<BillScanResponse>(cacheKey);
     if (cached) {
       logger.debug('[AIServiceManager] Cache hit for bill scan');
-      return { ...cached, cached: true } as BillScanResponse;
+      return { ...cached, cached: true };
     }
 
     const extractionPrompt = `You are an expert at extracting energy usage data from utility bills.
@@ -293,7 +293,7 @@ Rules:
         ]);
 
         const response = result.response;
-        if (!response || !response.text) {
+        if (!response?.text) {
           throw new Error('Gemini Vision returned an empty response.');
         }
 

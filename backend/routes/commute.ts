@@ -26,7 +26,7 @@ class CommuteEmissionsDB extends BaseDB {
    * @returns Document ID on success.
    */
   async save(userId: string, record: Omit<EmissionRecord, 'id' | 'userId'>): Promise<{ id: string }> {
-    return this.addDoc<EmissionRecord>(`users/${userId}/emissions`, { ...record, userId, category: 'commute' } as EmissionRecord);
+    return this.addDoc<EmissionRecord>(`users/${userId}/emissions`, { ...record, userId, category: 'commute' });
   }
 }
 

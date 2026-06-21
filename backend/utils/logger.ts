@@ -20,7 +20,18 @@ const developmentFormat = combine(
   timestamp({ format: 'HH:mm:ss' }),
   errors({ stack: true }),
   splat(),
-  printf(({ level, message, timestamp: ts, stack, ...meta }) => {
+  printf((info) => {
+    const level = typeof info.level === 'string' ? info.level : '';
+    const message = typeof info.message === 'string' ? info.message : '';
+    const ts = typeof info.timestamp === 'string' ? info.timestamp : '';
+    const stack = typeof info.stack === 'string' ? info.stack : '';
+
+    const meta: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(info)) {
+      if (key !== 'level' && key !== 'message' && key !== 'timestamp' && key !== 'stack') {
+        meta[key] = val;
+      }
+    }
     const metaStr = Object.keys(meta).length > 0 ? `\n${JSON.stringify(meta, null, 2)}` : '';
     const stackStr = stack ? `\n${stack}` : '';
     return `${ts} [${level}] ${message}${metaStr}${stackStr}`;

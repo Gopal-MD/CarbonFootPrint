@@ -4,6 +4,8 @@
  *
  * Route structure:
  *  GET  /health           → Server health check (no auth required)
+ *  GET  /api/docs         → Swagger UI (interactive API docs)
+ *  GET  /api/docs.json    → Raw OpenAPI 3.0 JSON spec
  *  POST /api/commute      → Commute carbon calculation (Google Maps)
  *  POST /api/scan         → Utility bill scan (Gemini Vision)
  *  POST /api/insights     → Personalized AI eco-insights (Gemini Text)
@@ -15,12 +17,14 @@
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
+import swaggerUi from 'swagger-ui-express';
 import { commuteRouter } from './commute.js';
 import { scanRouter } from './scan.js';
 import { insightsRouter } from './insights.js';
 import { emissionsRouter } from './emissions.js';
 import { authRouter } from './auth.js';
 import logger from '../utils/logger.js';
+import { openapiSpec } from '../utils/openapi.js';
 
 const router = Router();
 
@@ -34,10 +38,32 @@ router.get('/health', (req: Request, res: Response): void => {
   res.status(200).json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || '0.1.0',
-    environment: process.env.NODE_ENV || 'development',
+    version: process.env.npm_package_version ?? '0.1.0',
+    environment: process.env.NODE_ENV ?? 'development',
     uptime: Math.floor(process.uptime()),
   });
+});
+
+// ── API Documentation (Swagger UI) ────────────────────────────────────────────
+/**
+ * GET /api/docs
+ * Interactive Swagger UI — browse and test all API endpoints.
+ * Available in all environments.
+ */
+router.use('/api/docs', swaggerUi.serve);
+router.get('/api/docs', swaggerUi.setup(openapiSpec, {
+  customSiteTitle: 'EcoTrack API Docs',
+  customCss: '.swagger-ui .topbar { display: none }',
+  swaggerOptions: { persistAuthorization: true },
+}));
+
+/**
+ * GET /api/docs.json
+ * Raw OpenAPI 3.0 JSON specification.
+ */
+router.get('/api/docs.json', (req: Request, res: Response): void => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(openapiSpec);
 });
 
 // ── API Routes ────────────────────────────────────────────────────────────────

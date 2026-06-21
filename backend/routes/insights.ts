@@ -221,6 +221,10 @@ insightsRouter.post(
  * 3. Include specific saving estimates so the AI uses real numbers
  *
  * @param params - User emission breakdown.
+ * @param params.monthlyKgCO2e
+ * @param params.commuteKg
+ * @param params.utilityKg
+ * @param params.travelMode
  * @returns Complete prompt string ready to send to Gemini.
  */
 function buildInsightPrompt({ monthlyKgCO2e, commuteKg, utilityKg, travelMode }: InsightPromptParams): string {
@@ -260,6 +264,10 @@ End with an encouraging message about their progress.`;
  * calculated from the user's actual input rather than generic values.
  *
  * @param params - User emission breakdown.
+ * @param params.monthlyKgCO2e
+ * @param params.commuteKg
+ * @param params.utilityKg
+ * @param params.travelMode
  * @returns Formatted markdown insight string (same shape as Gemini output).
  */
 function generateRulesBasedInsights({ monthlyKgCO2e, commuteKg, utilityKg, travelMode }: InsightPromptParams): string {

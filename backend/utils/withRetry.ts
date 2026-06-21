@@ -83,7 +83,7 @@ function calculateDelay(attempt: number, config: ResolvedRetryConfig): number {
  * @throws Re-throws the last error after all retry attempts are exhausted.
  */
 export async function withRetry<T>(fn: () => Promise<T>, config: RetryConfig = {}, operationName = 'operation'): Promise<T> {
-  const resolvedConfig: ResolvedRetryConfig = { ...DEFAULT_CONFIG, ...config } as ResolvedRetryConfig;
+  const resolvedConfig: ResolvedRetryConfig = { ...DEFAULT_CONFIG, ...config };
   const { maxAttempts, shouldRetry } = resolvedConfig;
 
   let lastError: unknown;
@@ -121,12 +121,18 @@ export async function withRetry<T>(fn: () => Promise<T>, config: RetryConfig = {
   }
 
   // Attach retry context to the error for upstream error handlers
-  if (lastError && typeof lastError === 'object') {
-    (lastError as Record<string, unknown>).retriesExhausted = true;
-    (lastError as Record<string, unknown>).operationName = operationName;
+  if (lastError instanceof Error) {
+    const errorWithContext = lastError as unknown as Record<string, unknown>;
+    errorWithContext.retriesExhausted = true;
+    errorWithContext.operationName = operationName;
     throw lastError;
   }
-  throw new Error(`[withRetry] ${operationName} failed with unknown error`);
+  const errorMsg = typeof lastError === 'string' ? lastError : 'unknown error';
+  const wrappedError = new Error(errorMsg);
+  const errorWithContext = wrappedError as unknown as Record<string, unknown>;
+  errorWithContext.retriesExhausted = true;
+  errorWithContext.operationName = operationName;
+  throw wrappedError;
 }
 
 /**

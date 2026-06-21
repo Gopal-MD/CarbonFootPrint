@@ -49,6 +49,9 @@ function isValidRequestId(id: string): boolean {
 
 /**
  * Express middleware that attaches a unique request ID to every request.
+ * @param req
+ * @param res
+ * @param next
  */
 export function requestIdMiddleware(req: RequestWithId, res: Response, next: NextFunction): void {
   const incomingId = req.headers['x-request-id'];
