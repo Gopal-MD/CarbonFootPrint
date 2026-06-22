@@ -14,7 +14,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@google-cloud/vision": "^4.3.2",
+    "@google-cloud/vision": "^5.3.7",
     "@google/generative-ai": "^0.17.1",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
