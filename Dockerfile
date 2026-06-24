@@ -6,7 +6,7 @@
 # ─────────────────────────────────────────────────
 # Stage 1: Build Frontend (React 18 + Vite)
 # ─────────────────────────────────────────────────
-FROM node:20-alpine AS builder-frontend
+FROM node:26-alpine AS builder-frontend
 
 LABEL stage="builder-frontend"
 
@@ -32,7 +32,7 @@ RUN npm run build
 # ─────────────────────────────────────────────────
 # Stage 2: Build & Prepare Backend
 # ─────────────────────────────────────────────────
-FROM node:20-alpine AS builder-backend
+FROM node:26-alpine AS builder-backend
 
 LABEL stage="builder-backend"
 
@@ -63,7 +63,7 @@ RUN npm install --omit=dev --ignore-scripts
 # ─────────────────────────────────────────────────
 # Stage 3: Production Runtime (minimal, non-root)
 # ─────────────────────────────────────────────────
-FROM node:20-alpine AS production
+FROM node:26-alpine AS production
 
 LABEL maintainer="Carbon Footprint Platform Team"
 LABEL version="0.1.0"
